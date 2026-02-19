@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import base64
-from io import BytesIO
 from PIL import Image
 from pypdf import PdfReader
 from langchain_groq import ChatGroq
@@ -46,7 +45,7 @@ with st.sidebar:
 contexto_txt = ""
 if pdf_file:
     reader = PdfReader(pdf_file)
-    paginas = min(len(reader.pages), 15)
+    paginas = min(len(reader.pages), 10)
     for i in range(paginas):
         texto = reader.pages[i].extract_text()
         if texto: contexto_txt += texto + "\n"
@@ -60,30 +59,32 @@ if img_file:
 
 # Mostrar Chat
 for m in st.session_state.chat_history:
-    with st.chat_message("assistant" if isinstance(m, AIMessage) else "user"):
+    role = "assistant" if isinstance(m, AIMessage) else "user"
+    with st.chat_message(role):
         st.markdown(m.content)
 
 # --- 5. LÓGICA DE RESPUESTA ---
 if prompt := st.chat_input("Escribí acá..."):
     st.session_state.chat_history.append(HumanMessage(content=prompt))
-    with st.chat_message("user"): st.markdown(prompt)
-
-    # Construcción del contenido (MULTIMODAL)
-    if img_b64:
-        content_payload =
-    else:
-        content_payload = prompt
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
     with st.spinner("Pensando..."):
         try:
-            sys_msg = SystemMessage(content=f"Eres un tutor nivel {nivel_edu}. Contexto: {contexto_txt[:4000]}")
-            user_msg = HumanMessage(content=content_payload)
-            
-            response = llm.invoke([sys_msg, user_msg])
+            # Construcción de la carga útil (Payload)
+            if img_b64:
+                mensaje_usuario = HumanMessage(content=)
+            else:
+                mensaje_usuario = HumanMessage(content=prompt)
+
+            instruccion = f"Eres un tutor nivel {nivel_edu}. Contexto: {contexto_txt[:3000]}"
+            response = llm.invoke([SystemMessage(content=instruccion), mensaje_usuario])
             
             st.session_state.chat_history.append(response)
-            with st.chat_message("assistant"): st.markdown(response.content)
+            with st.chat_message("assistant"):
+                st.markdown(response.content)
             st.rerun()
         except Exception as e:
             st.error(f"Error: {e}")
+
 
