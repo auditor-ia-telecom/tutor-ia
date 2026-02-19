@@ -2,23 +2,43 @@ import streamlit as st
 import os
 import base64
 import sys
-from io import BytesIO
+import pandas as pd
+import numpy as np
+import faiss
+from io import BytesIO, StringIO
 from typing import TypedDict, List
 from PIL import Image
 from pypdf import PdfReader
+from sentence_transformers import SentenceTransformer
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Tutor IA Visión", layout="centered", page_icon="🎓")
+# 1. CONFIGURACIÓN INICIAL
+st.set_page_config(page_title="Tutor Agéntico Pro 2026", layout="wide", page_icon="🎓")
 
+# Evitar errores de codificación en Windows
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# Cache del modelo de embeddings (tu motor de búsqueda)
+@st.cache_resource
+def get_embedding_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+embed_model = get_embedding_model()
+
+# --- 2. GESTIÓN DE SESIÓN ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "index" not in st.session_state:
+    st.session_state.index = None
+    st.session_state.txt_chunks = []
 
-# --- 2. LOGIN ---
+# --- 3. PANTALLA DE ACCESO ---
 if not st.session_state.autenticado:
-    st.title("🔑 Acceso Tutor")
-    key_input = st.text_input("Groq API Key:", type="password").strip()
+    st.title("🔑 Acceso al Aula Virtual")
+    key_input = st.text_input("Ingresá tu Groq API Key:", type="password").strip()
     if st.button("Ingresar"):
         if key_input.startswith("gsk_"):
             st.session_state.api_key = key_input
@@ -26,44 +46,40 @@ if not st.session_state.autenticado:
             st.rerun()
     st.stop()
 
-# --- 3. IA CONFIG ---
+# --- 4. CONFIGURACIÓN DE IA (LANGGRAPH) ---
 from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 
 os.environ["GROQ_API_KEY"] = st.session_state.api_key
+# Usamos el modelo VISION para que todo funcione (Fotos + Texto)
+llm = ChatGroq(model="llama-3.2-11b-vision-preview", temperature=0.1)
 
-# CAMBIO DE MODELO AL ESTABLE CON VISIÓN
-try:
-    llm = ChatGroq(model="llama-3.2-11b-vision-preview", temperature=0.1)
-except:
-    # Backup por si Groq cambió el nombre del modelo ayer
-    llm = ChatGroq(model="llama-3.2-90b-vision-preview", temperature=0.1)
-
-# --- 4. GRAFO ---
 class AgentState(TypedDict):
     messages: List[BaseMessage]
-    contexto: str
+    contexto_rag: str
     imagen_b64: str
     nivel: str
 
 def tutor_node(state: AgentState):
-    # Tomamos solo el último mensaje para evitar el error de BadRequest por tamaño
-    ultimo_mensaje_texto = state['messages'][-1].content
+    ultimo_msg = state['messages'][-1].content
     
-    # Construcción del mensaje con formato compatible
+    # Construcción de contenido para Visión
+    content = [{"type": "text", "text": ultimo_msg}]
     if state.get("imagen_b64"):
-        content = [
-            {"type": "text", "text": ultimo_mensaje_texto},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['imagen_b64']}"}}
-        ]
-    else:
-        content = ultimo_mensaje_texto
+        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['imagen_b64']}"}})
     
-    sys_prompt = f"Eres un tutor de nivel {state['nivel']}. Contexto: {state['contexto'][:1000]}"
+    sys_prompt = f"""
+    Eres un Tutor Experto nivel {state['nivel']}. 
+    CONTEXTO DEL PDF (RAG): {state['contexto_rag']}
     
-    # Invocación directa
-    response = llm.invoke([SystemMessage(content=sys_prompt), HumanMessage(content=content)])
+    REGLAS:
+    1. Si hay una imagen, analízala detalladamente.
+    2. Usa el contexto del PDF para responder con precisión técnica.
+    3. Usa LaTeX $ $ para fórmulas matemáticas.
+    """
+    
+    response = llm.invoke([SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=content)])
     return {"messages": [response]}
 
 workflow = StateGraph(AgentState)
@@ -72,31 +88,45 @@ workflow.set_entry_point("tutor")
 workflow.add_edge("tutor", END)
 app = workflow.compile()
 
-# --- 5. UI ---
-st.title("👨‍🏫 Tutor Agéntico")
+# --- 5. INTERFAZ Y SIDEBAR ---
+st.title("👨‍🏫 Tutor Agéntico Senior (RAG + Vision)")
 
 with st.sidebar:
-    nivel_edu = st.selectbox("Nivel:", ["Primario", "Secundario", "Universidad"], index=1)
-    pdf_file = st.file_uploader("PDF (Programa)", type="pdf")
-    img_file = st.file_uploader("Foto (Ejercicio)", type=["jpg", "png", "jpeg"])
-    if st.button("🗑️ Reset"):
-        st.session_state.chat_history = []
-        st.rerun()
+    st.success("Sesión Activa")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Reset"):
+            st.session_state.chat_history = []
+            st.session_state.index = None
+            st.rerun()
+    with col2:
+        if st.button("🚪 Salir"):
+            st.session_state.autenticado = False
+            st.rerun()
+    
+    nivel_edu = st.selectbox("Nivel Educativo:", ["Primario", "Secundario", "Universidad"], index=1)
+    
+    st.divider()
+    pdf_file = st.file_uploader("Subir PDF (Incluso grandes)", type="pdf")
+    img_file = st.file_uploader("Subir Foto de Ejercicio", type=["jpg", "png", "jpeg"])
 
-# Procesamiento súper liviano del PDF
-contexto_txt = ""
-if pdf_file:
-    reader = PdfReader(pdf_file)
-    # Solo las primeras 3 páginas, muy recortado para evitar errores
-    for i in range(min(len(reader.pages), 3)):
-        contexto_txt += reader.pages[i].extract_text()[:300]
-    st.sidebar.success("PDF cargado")
+# Procesamiento RAG (Tus 50 páginas ahora funcionan)
+if pdf_file and st.session_state.index is None:
+    with st.status("Indexando PDF complejo..."):
+        reader = PdfReader(pdf_file)
+        chunks = []
+        for i, page in enumerate(reader.pages):
+            t = page.extract_text()
+            if t: chunks.append(f"Pág {i+1}: {t}")
+        
+        embeddings = embed_model.encode(chunks)
+        index = faiss.IndexFlatL2(embeddings.shape[1])
+        index.add(np.array(embeddings).astype('float32'))
+        
+        st.session_state.index = index
+        st.session_state.txt_chunks = chunks
 
-img_b64 = None
-if img_file:
-    img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
-
-# Mostrar Chat
+# --- 6. CHAT Y LÓGICA DE RESPUESTA ---
 for m in st.session_state.chat_history:
     with st.chat_message("assistant" if isinstance(m, AIMessage) else "user"):
         st.markdown(m.content)
@@ -105,19 +135,27 @@ if prompt := st.chat_input("Escribí acá..."):
     st.session_state.chat_history.append(HumanMessage(content=prompt))
     with st.chat_message("user"): st.markdown(prompt)
 
-    inputs = {
-        "messages": st.session_state.chat_history,
-        "contexto": contexto_txt,
-        "imagen_b64": img_b64,
-        "nivel": nivel_edu
-    }
-    
-    with st.spinner("Pensando..."):
-        try:
-            output = app.invoke(inputs)
-            resp = output["messages"][-1]
-            st.session_state.chat_history.append(resp)
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error de la API: {e}")
+    # Búsqueda semántica (RAG)
+    contexto_rag = "No hay info en el PDF."
+    if st.session_state.index is not None:
+        p_vec = embed_model.encode([prompt])
+        _, I = st.session_state.index.search(np.array(p_vec).astype('float32'), k=5)
+        contexto_rag = "\n".join([st.session_state.txt_chunks[i] for i in I.flatten() if i != -1])
 
+    # Imagen
+    img_b64 = None
+    if img_file:
+        img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
+
+    with st.spinner("El Tutor está analizando..."):
+        inputs = {
+            "messages": st.session_state.chat_history,
+            "contexto_rag": contexto_rag,
+            "imagen_b64": img_b64,
+            "nivel": nivel_edu
+        }
+        output = app.invoke(inputs)
+        resp = output["messages"][-1]
+        st.session_state.chat_history.append(resp)
+        with st.chat_message("assistant"): st.markdown(resp.content)
+        st.rerun()
