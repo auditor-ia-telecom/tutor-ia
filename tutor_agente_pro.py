@@ -24,10 +24,8 @@ if "chat_history" not in st.session_state:
 if "contador" not in st.session_state:
     st.session_state.contador = 0
 if "imagen_usada" not in st.session_state:
-    # Rastreamos si la imagen ya fue enviada al modelo en esta sesión
     st.session_state.imagen_usada = False
 if "ultima_imagen_id" not in st.session_state:
-    # Para detectar si cargaron una imagen nueva
     st.session_state.ultima_imagen_id = None
 
 # --- 2. PANTALLA DE LOGIN ---
@@ -77,7 +75,6 @@ def get_vision_llm():
 
 def tutor_node(state: AgentState):
     ultimo_msg = state['messages'][-1].content
-    # La imagen solo viene en el estado si es la primera consulta tras cargarla
     hay_imagen = bool(state.get("imagen_b64"))
 
     roles = {
@@ -94,7 +91,7 @@ def tutor_node(state: AgentState):
     1. Tu prioridad es el HILO de la conversación actual. Quédate en el tema hasta que el alumno entienda.
     2. El PROGRAMA ({state['contexto_programa']}) es solo tu guía de nivel.
     3. Si el alumno dice 'no entiendo', explica el ÚLTIMO concepto con ejemplos simples.
-    4. Si hay una imagen adjunta, analizala en el contexto educativo.
+    4. Si hay una imagen adjunta o fue analizada previamente en la conversación, usá esa información para responder.
     5. Usa LaTeX $ $ para fórmulas.
     """
 
@@ -149,30 +146,43 @@ app = workflow.compile()
 # --- 5. INTERFAZ ---
 st.title("👨‍🏫 Tutor Agéntico con Memoria")
 
+# --- BOTONES RESET Y SALIR (arriba a la izquierda via sidebar) ---
 with st.sidebar:
-    st.success("Profesor Conectado")
+    st.success("✅ Profesor Conectado")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Reiniciar", use_container_width=True):
+            st.session_state.chat_history = []
+            st.session_state.contador = 0
+            st.session_state.imagen_usada = False
+            st.session_state.ultima_imagen_id = None
+            st.rerun()
+    with col2:
+        if st.button("🚪 Salir", use_container_width=True):
+            st.session_state.autenticado = False
+            st.session_state.chat_history = []
+            st.session_state.contador = 0
+            st.session_state.imagen_usada = False
+            st.session_state.ultima_imagen_id = None
+            st.session_state.api_key = ""
+            st.rerun()
+
+    st.divider()
     nivel_edu = st.selectbox("Nivel del Alumno:", ["Primario", "Secundario", "Universidad"], index=1)
     st.divider()
-    pdf_file = st.file_uploader("Programa (PDF)", type="pdf")
-    img_file = st.file_uploader("Foto Ejercicio", type=["jpg", "png", "jpeg"])
+    pdf_file = st.file_uploader("📄 Programa (PDF)", type="pdf")
+    img_file = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg", "png", "jpeg"])
 
     if img_file:
-        # Detectamos si es una imagen nueva por su nombre+tamaño
         imagen_id = f"{img_file.name}_{img_file.size}"
         if imagen_id != st.session_state.ultima_imagen_id:
-            # Es una imagen nueva: reseteamos el flag para que se envíe una vez
+            # Nueva imagen: reseteamos para que se envíe una vez
             st.session_state.imagen_usada = False
             st.session_state.ultima_imagen_id = imagen_id
 
-        estado_img = "📤 Lista para enviar" if not st.session_state.imagen_usada else "✅ Ya analizada"
+        estado_img = "📤 Lista para enviar" if not st.session_state.imagen_usada else "✅ Ya analizada (en memoria)"
         st.image(img_file, caption=estado_img, use_container_width=True)
-
-    if st.button("🗑️ Reiniciar Clase"):
-        st.session_state.chat_history = []
-        st.session_state.contador = 0
-        st.session_state.imagen_usada = False
-        st.session_state.ultima_imagen_id = None
-        st.rerun()
 
     if st.session_state.chat_history:
         chat_text = "--- RESUMEN DE CLASE ---\n\n"
@@ -207,20 +217,30 @@ if prompt := st.chat_input("Escribí acá..."):
             inputs = {
                 "messages": st.session_state.chat_history,
                 "contexto_programa": contexto,
-                "imagen_b64": img_b64,   # None si ya fue usada
+                "imagen_b64": img_b64,
                 "contador_pasos": st.session_state.contador,
                 "nivel_educativo": nivel_edu
             }
             output = app.invoke(inputs)
             resp_final = output["messages"][-1]
             st.session_state.contador = output.get("contador_pasos", 0)
-            st.session_state.chat_history.append(resp_final)
 
-            # Marcamos la imagen como usada para no reenviarla
+            # *** CLAVE: inyectamos la respuesta del análisis de imagen en el historial
+            # con un prefijo claro, así el modelo recuerda que vio la imagen ***
             if img_b64:
+                # Reemplazamos el HumanMessage de esta consulta con uno que
+                # deje constancia de que había imagen adjunta
+                if st.session_state.chat_history and isinstance(st.session_state.chat_history[-1], HumanMessage):
+                    texto_original = st.session_state.chat_history[-1].content
+                    st.session_state.chat_history[-1] = HumanMessage(
+                        content=f"[El alumno adjuntó una imagen] {texto_original}"
+                    )
                 st.session_state.imagen_usada = True
 
+            st.session_state.chat_history.append(resp_final)
             with st.chat_message("assistant"):
                 st.markdown(resp_final.content)
+
         except Exception as e:
             st.error(f"❌ Error inesperado: {e}\n\nIntentá reiniciar la clase o verificar tu API Key.")
+
