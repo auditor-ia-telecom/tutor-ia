@@ -2,9 +2,7 @@ import streamlit as st
 import os
 import base64
 import sys
-from io import BytesIO
 from typing import TypedDict, List
-from PIL import Image
 from pypdf import PdfReader
 
 # Forzamos UTF-8 para evitar errores de ASCII en Windows
@@ -25,6 +23,12 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "contador" not in st.session_state:
     st.session_state.contador = 0
+if "imagen_usada" not in st.session_state:
+    # Rastreamos si la imagen ya fue enviada al modelo en esta sesión
+    st.session_state.imagen_usada = False
+if "ultima_imagen_id" not in st.session_state:
+    # Para detectar si cargaron una imagen nueva
+    st.session_state.ultima_imagen_id = None
 
 # --- 2. PANTALLA DE LOGIN ---
 if not st.session_state.autenticado:
@@ -43,13 +47,10 @@ if not st.session_state.autenticado:
 # --- 3. CONFIGURACIÓN DEL MODELO ---
 os.environ["GROQ_API_KEY"] = st.session_state.api_key
 
-# Modelo de texto (rápido, sin visión)
 MODEL_TEXT = "llama-3.3-70b-versatile"
-
-# Modelos con visión — se prueban en orden hasta que uno funcione
 VISION_MODELS = [
-    "meta-llama/llama-4-scout-17b-16e-instruct",     # Recomendado, disponible en plan gratuito
-    "meta-llama/llama-4-maverick-17b-128e-instruct",  # Alternativa
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
 ]
 
 try:
@@ -67,7 +68,6 @@ class AgentState(TypedDict):
     nivel_educativo: str
 
 def get_vision_llm():
-    """Intenta instanciar un modelo de visión disponible, devuelve None si ninguno funciona."""
     for model_name in VISION_MODELS:
         try:
             return ChatGroq(model=model_name, temperature=0.1)
@@ -77,9 +77,9 @@ def get_vision_llm():
 
 def tutor_node(state: AgentState):
     ultimo_msg = state['messages'][-1].content
+    # La imagen solo viene en el estado si es la primera consulta tras cargarla
     hay_imagen = bool(state.get("imagen_b64"))
 
-    # Definición de Roles según el nivel
     roles = {
         "Primario": "Maestro de primaria (10 años). Lenguaje simple, cuentos y mucha paciencia.",
         "Secundario": "Tutor de secundaria (15 años). Lenguaje claro, sin tecnicismos pesados, motivador.",
@@ -91,18 +91,17 @@ def tutor_node(state: AgentState):
     {perfil}
 
     INSTRUCCIONES DE MEMORIA:
-    1. Tu prioridad es el HILO de la conversación actual. Si planteaste un ejercicio, quédate ahí hasta que el alumno entienda.
-    2. El PROGRAMA ({state['contexto_programa']}) es solo tu guía de nivel, NO ignores lo que acabas de decir.
-    3. Si el alumno dice 'no entiendo', explica el ÚLTIMO concepto mencionado con ejemplos simples.
-    4. Si hay una imagen adjunta, analizala y describí su contenido en el contexto educativo.
+    1. Tu prioridad es el HILO de la conversación actual. Quédate en el tema hasta que el alumno entienda.
+    2. El PROGRAMA ({state['contexto_programa']}) es solo tu guía de nivel.
+    3. Si el alumno dice 'no entiendo', explica el ÚLTIMO concepto con ejemplos simples.
+    4. Si hay una imagen adjunta, analizala en el contexto educativo.
     5. Usa LaTeX $ $ para fórmulas.
     """
 
     if hay_imagen:
         llm_vision = get_vision_llm()
         if llm_vision is None:
-            # Ningún modelo de visión disponible: avisamos amigablemente
-            content = ultimo_msg + "\n\n[Nota: No se pudo analizar la imagen porque ningún modelo de visión está disponible en tu plan de Groq. Describí el ejercicio con palabras y te ayudo igual.]"
+            content = ultimo_msg + "\n\n[Nota: No se pudo analizar la imagen, ningún modelo de visión disponible en tu plan.]"
             llm = llm_text
         else:
             content = [
@@ -118,8 +117,7 @@ def tutor_node(state: AgentState):
         response = llm.invoke(
             [SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=content)]
         )
-    except Exception as e:
-        # Si falla el modelo de visión, caemos a texto con aviso amigable
+    except Exception:
         if hay_imagen:
             fallback_content = ultimo_msg + "\n\n[Nota: Hubo un problema al procesar la imagen. Describí el ejercicio con palabras y te ayudo igual.]"
             response = llm_text.invoke(
@@ -159,11 +157,21 @@ with st.sidebar:
     img_file = st.file_uploader("Foto Ejercicio", type=["jpg", "png", "jpeg"])
 
     if img_file:
-        st.image(img_file, caption="Imagen cargada ✅", use_container_width=True)
+        # Detectamos si es una imagen nueva por su nombre+tamaño
+        imagen_id = f"{img_file.name}_{img_file.size}"
+        if imagen_id != st.session_state.ultima_imagen_id:
+            # Es una imagen nueva: reseteamos el flag para que se envíe una vez
+            st.session_state.imagen_usada = False
+            st.session_state.ultima_imagen_id = imagen_id
+
+        estado_img = "📤 Lista para enviar" if not st.session_state.imagen_usada else "✅ Ya analizada"
+        st.image(img_file, caption=estado_img, use_container_width=True)
 
     if st.button("🗑️ Reiniciar Clase"):
         st.session_state.chat_history = []
         st.session_state.contador = 0
+        st.session_state.imagen_usada = False
+        st.session_state.ultima_imagen_id = None
         st.rerun()
 
     if st.session_state.chat_history:
@@ -173,12 +181,14 @@ with st.sidebar:
             chat_text += f"[{autor}]: {m.content}\n\n"
         st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain")
 
+# Procesamos PDF
 contexto = "General"
 if pdf_file:
     contexto = "".join([p.extract_text() for p in PdfReader(pdf_file).pages])
 
+# La imagen se codifica SOLO si no fue usada todavía
 img_b64 = None
-if img_file:
+if img_file and not st.session_state.imagen_usada:
     img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
 
 # Mostrar Chat
@@ -192,12 +202,12 @@ if prompt := st.chat_input("Escribí acá..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    with st.spinner("Analizando hilo de conversación..."):
+    with st.spinner("Analizando..."):
         try:
             inputs = {
                 "messages": st.session_state.chat_history,
                 "contexto_programa": contexto,
-                "imagen_b64": img_b64,
+                "imagen_b64": img_b64,   # None si ya fue usada
                 "contador_pasos": st.session_state.contador,
                 "nivel_educativo": nivel_edu
             }
@@ -205,6 +215,11 @@ if prompt := st.chat_input("Escribí acá..."):
             resp_final = output["messages"][-1]
             st.session_state.contador = output.get("contador_pasos", 0)
             st.session_state.chat_history.append(resp_final)
+
+            # Marcamos la imagen como usada para no reenviarla
+            if img_b64:
+                st.session_state.imagen_usada = True
+
             with st.chat_message("assistant"):
                 st.markdown(resp_final.content)
         except Exception as e:
