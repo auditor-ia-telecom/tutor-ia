@@ -7,7 +7,7 @@ from typing import TypedDict, List
 from PIL import Image
 from pypdf import PdfReader
 
-# Forzamos UTF-8 para evitar errores de ASCII en Windows
+# Forzamos UTF-8 para evitar errores de codificación en Windows/Linux
 if sys.stdout.encoding != 'utf-8':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -40,11 +40,11 @@ if not st.session_state.autenticado:
             st.error("La clave debe empezar con 'gsk_'.")
     st.stop() 
 
-# --- 3. CONFIGURACIÓN DEL MODELO ---
+# --- 3. CONFIGURACIÓN DEL MODELO CON VISIÓN ---
 os.environ["GROQ_API_KEY"] = st.session_state.api_key
 try:
-    # Bajamos la temperatura para que sea más preciso y coherente
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.1)
+    # Usamos el modelo VISION para que pueda ver fotos y procesar PDF
+    llm = ChatGroq(model="llama-3.2-11b-vision-preview", temperature=0.1)
 except Exception as e:
     st.error(f"Error de conexión: {e}")
     st.stop()
@@ -58,44 +58,45 @@ class AgentState(TypedDict):
     nivel_educativo: str
 
 def tutor_node(state: AgentState):
-    # Capturamos el último mensaje del alumno
     ultimo_msg = state['messages'][-1].content
     content = [{"type": "text", "text": ultimo_msg}]
     
+    # Si hay imagen, la adjuntamos al mensaje para el modelo Vision
     if state.get("imagen_b64"):
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['imagen_b64']}"}})
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{state['imagen_b64']}"}
+        })
     
-    # Definición de Roles según el nivel
     roles = {
-        "Primario": "Maestro de primaria (10 años). Lenguaje simple, cuentos y mucha paciencia.",
-        "Secundario": "Tutor de secundaria (15 años). Lenguaje claro, sin tecnicismos pesados, motivador.",
-        "Universidad": "Profesor Ingeniero. Rigor matemático, términos técnicos y analogías de ingeniería."
+        "Primario": "Maestro de primaria. Lenguaje simple, cuentos y mucha paciencia.",
+        "Secundario": "Tutor de secundaria. Lenguaje claro, ejemplos diarios, motivador.",
+        "Universidad": "Profesor Ingeniero. Rigor matemático y analogías técnicas."
     }
     
     perfil = roles.get(state['nivel_educativo'], roles["Secundario"])
     
-    # PROMPT DE MEMORIA MEJORADA: Obligamos al modelo a seguir el hilo
     sys_prompt = f"""
     {perfil}
+    CONTEXTO DEL PROGRAMA (Resumen): {state['contexto_programa']}
     
-    INSTRUCCIONES DE MEMORIA:
-    1. Tu prioridad es el HILO de la conversación actual. Si planteaste un ejercicio (ej. Fotosíntesis), quédate ahí hasta que el alumno entienda.
-    2. El PROGRAMA ({state['contexto_programa']}) es solo tu guía de nivel, NO ignores lo que acabas de decir.
-    3. Si el alumno dice 'no entiendo', explica el ÚLTIMO concepto mencionado con peras y manzanas.
-    4. Usa LaTeX $ $ para fórmulas.
+    INSTRUCCIONES:
+    1. PRIORIDAD: El hilo de la conversación. Si planteas un problema, quédate ahí.
+    2. VISIÓN: Si recibes una imagen, descríbela matemáticamente y resuélvela con LaTeX $ $.
+    3. Si el alumno no entiende, simplifica la explicación usando analogías.
     """
     
-    # Enviamos todo el historial para que no tenga amnesia
+    # Enviamos historial + prompt de sistema + mensaje actual (con imagen si existe)
     response = llm.invoke([SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=content)])
     return {"messages": [response], "contador_pasos": state.get("contador_pasos", 0) + 1}
 
 def examen_node(state: AgentState):
-    prompt = f"Genera un ejercicio corto nivel {state['nivel_educativo']} sobre el último tema hablado."
+    prompt = f"Genera un ejercicio corto nivel {state['nivel_educativo']} sobre lo último hablado."
     response = llm.invoke([SystemMessage(content=prompt), HumanMessage(content="¡Examen!")])
-    return {"messages": [AIMessage(content=f"🎓 **DESAFÍO ({state['nivel_educativo']}):** {response.content}")]}
+    return {"messages": [AIMessage(content=f"🎓 **EVALUACIÓN:** {response.content}")]}
 
 def router(state: AgentState):
-    if state.get("contador_pasos", 0) >= 6: return "examen" # Subimos a 6 para dar más aire
+    if state.get("contador_pasos", 0) >= 6: return "examen"
     return END
 
 workflow = StateGraph(AgentState)
@@ -106,78 +107,62 @@ workflow.add_conditional_edges("tutor", router, {"examen": "examen", END: END})
 workflow.add_edge("examen", END)
 app = workflow.compile()
 
-# --- 5. INTERFAZ ACTUALIZADA ---
-st.title("👨‍🏫 Tutor Agéntico con Memoria")
+# --- 5. INTERFAZ ---
+st.title("👨‍🏫 Tutor Agéntico con Visión")
 
 with st.sidebar:
-    st.success("Profesor Conectado")
+    st.success("Conectado")
     
-    # 1. BOTONES DE CONTROL (ARRIBA DE TODO)
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🗑️ Reset", help="Borra el chat actual"):
+        if st.button("🗑️ Reset"):
             st.session_state.chat_history = []
             st.session_state.contador = 0
             st.rerun()
     with col2:
-        if st.button("🚪 Salir", help="Vuelve a la pantalla de login"):
+        if st.button("🚪 Salir"):
             st.session_state.autenticado = False
             st.rerun()
 
     st.divider()
+    nivel_edu = st.selectbox("Nivel del Alumno:", ["Primario", "Secundario", "Universidad"], index=1)
     
-    # 2. SELECTOR DE NIVEL
-    nivel_edu = st.selectbox(
-        "Nivel del Alumno:", 
-        ["Primario", "Secundario", "Universidad"], 
-        index=1,
-        key="nivel_selector"
-    )
-    
-    # 3. BOTÓN DE DESCARGA (Solo si hay mensajes)
     if len(st.session_state.chat_history) > 0:
-        chat_text = "--- RESUMEN DE CLASE ---\n\n"
+        chat_text = "--- CLASE ---\n\n"
         for m in st.session_state.chat_history:
             autor = "ALUMNO" if isinstance(m, HumanMessage) else "PROFESOR"
             chat_text += f"[{autor}]: {m.content}\n\n"
-        
-        st.download_button(
-            label="📄 Descargar Clase",
-            data=chat_text,
-            file_name="resumen_clase.txt",
-            mime="text/plain",
-            key="btn_descarga_final"
-        )
+        st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain", key="dl_btn")
 
     st.divider()
-    
-    # 4. CARGA DE ARCHIVOS
     pdf_file = st.file_uploader("Programa (PDF)", type="pdf")
     img_file = st.file_uploader("Foto Ejercicio", type=["jpg", "png", "jpeg"])
 
-# --- LÓGICA DE PROCESAMIENTO (FUERA DEL SIDEBAR) ---
-contexto = "General"
+# Procesamiento de Archivos (Optimizados)
+contexto = "No se cargó programa."
 if pdf_file:
-    contexto = "".join([p.extract_text() for p in PdfReader(pdf_file).pages])
+    reader = PdfReader(pdf_file)
+    # Leemos máximo 20 páginas para evitar saturar la API
+    limite = min(len(reader.pages), 20)
+    contexto = "".join([reader.pages[i].extract_text() for i in range(limite)])
+    st.sidebar.info(f"PDF cargado (leídas {limite} págs).")
 
 img_b64 = None
 if img_file:
     img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
-    st.sidebar.image(img_file, caption="Imagen cargada")
+    st.sidebar.image(img_file, caption="Vista previa")
 
-# --- MOSTRAR CHAT ---
+# Mostrar Chat
 for m in st.session_state.chat_history:
     with st.chat_message("assistant" if isinstance(m, AIMessage) else "user"):
         st.markdown(m.content)
 
-# --- INPUT DEL ALUMNO ---
 if prompt := st.chat_input("Escribí acá..."):
     new_user_msg = HumanMessage(content=prompt)
     st.session_state.chat_history.append(new_user_msg)
-    with st.chat_message("user"): 
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
-    with st.spinner("Analizando hilo de conversación..."):
+    with st.spinner("Procesando imagen y texto..."):
         inputs = {
             "messages": st.session_state.chat_history, 
             "contexto_programa": contexto, 
@@ -185,19 +170,14 @@ if prompt := st.chat_input("Escribí acá..."):
             "contador_pasos": st.session_state.contador,
             "nivel_educativo": nivel_edu
         }
-        
-        # Invocamos al grafo (App)
         output = app.invoke(inputs)
         resp_final = output["messages"][-1]
-        
-        # Guardamos estado y mostramos
         st.session_state.contador = output.get("contador_pasos", 0)
         st.session_state.chat_history.append(resp_final)
-        
-        with st.chat_message("assistant"): 
-            st.markdown(resp_final.content)
-        
-        st.rerun() # Refrescamos para actualizar el botón de descarga en el sidebar
+        with st.chat_message("assistant"): st.markdown(resp_final.content)
+        st.rerun()
+
+     
 
 
 
