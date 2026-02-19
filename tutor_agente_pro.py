@@ -14,8 +14,6 @@ if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-if "contador" not in st.session_state:
-    st.session_state.contador = 0
 
 # --- 2. LOGIN ---
 if not st.session_state.autenticado:
@@ -34,7 +32,13 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 
 os.environ["GROQ_API_KEY"] = st.session_state.api_key
-llm = ChatGroq(model="llama-3.2-11b-vision-preview", temperature=0.1)
+
+# CAMBIO DE MODELO AL ESTABLE CON VISIÓN
+try:
+    llm = ChatGroq(model="llama-3.2-11b-vision-preview", temperature=0.1)
+except:
+    # Backup por si Groq cambió el nombre del modelo ayer
+    llm = ChatGroq(model="llama-3.2-90b-vision-preview", temperature=0.1)
 
 # --- 4. GRAFO ---
 class AgentState(TypedDict):
@@ -44,18 +48,22 @@ class AgentState(TypedDict):
     nivel: str
 
 def tutor_node(state: AgentState):
-    # Solo enviamos los últimos 4 mensajes para no saturar la memoria
-    history = state['messages'][-4:] 
+    # Tomamos solo el último mensaje para evitar el error de BadRequest por tamaño
+    ultimo_mensaje_texto = state['messages'][-1].content
     
-    # Construcción del contenido multimodal
-    content = [{"type": "text", "text": history[-1].content}]
+    # Construcción del mensaje con formato compatible
     if state.get("imagen_b64"):
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['imagen_b64']}"}})
+        content = [
+            {"type": "text", "text": ultimo_mensaje_texto},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{state['imagen_b64']}"}}
+        ]
+    else:
+        content = ultimo_mensaje_texto
     
-    sys_prompt = f"Eres un tutor de nivel {state['nivel']}. Contexto resumen: {state['contexto'][:2000]}"
+    sys_prompt = f"Eres un tutor de nivel {state['nivel']}. Contexto: {state['contexto'][:1000]}"
     
-    # Invocación limpia
-    response = llm.invoke([SystemMessage(content=sys_prompt)] + history[:-1] + [HumanMessage(content=content)])
+    # Invocación directa
+    response = llm.invoke([SystemMessage(content=sys_prompt), HumanMessage(content=content)])
     return {"messages": [response]}
 
 workflow = StateGraph(AgentState)
@@ -75,20 +83,20 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.rerun()
 
-# Procesamiento ultra-ligero del PDF
+# Procesamiento súper liviano del PDF
 contexto_txt = ""
 if pdf_file:
     reader = PdfReader(pdf_file)
-    # Solo extraemos las primeras 5 páginas y limitamos caracteres
-    for i in range(min(len(reader.pages), 5)):
-        contexto_txt += reader.pages[i].extract_text()[:500]
-    st.sidebar.success("PDF procesado (resumen)")
+    # Solo las primeras 3 páginas, muy recortado para evitar errores
+    for i in range(min(len(reader.pages), 3)):
+        contexto_txt += reader.pages[i].extract_text()[:300]
+    st.sidebar.success("PDF cargado")
 
 img_b64 = None
 if img_file:
     img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
 
-# Chat
+# Mostrar Chat
 for m in st.session_state.chat_history:
     with st.chat_message("assistant" if isinstance(m, AIMessage) else "user"):
         st.markdown(m.content)
@@ -105,13 +113,11 @@ if prompt := st.chat_input("Escribí acá..."):
     }
     
     with st.spinner("Pensando..."):
-        output = app.invoke(inputs)
-        resp = output["messages"][-1]
-        st.session_state.chat_history.append(resp)
-        with st.chat_message("assistant"): st.markdown(resp.content)
-        st.rerun()
-
-
-
-
+        try:
+            output = app.invoke(inputs)
+            resp = output["messages"][-1]
+            st.session_state.chat_history.append(resp)
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error de la API: {e}")
 
