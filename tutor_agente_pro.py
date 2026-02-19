@@ -2,9 +2,10 @@ import streamlit as st
 import os
 import base64
 from io import BytesIO
-from typing import List
 from PIL import Image
 from pypdf import PdfReader
+from langchain_groq import ChatGroq
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Tutor IA Visión", layout="centered", page_icon="🎓")
@@ -26,11 +27,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # --- 3. IA CONFIG ---
-from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-
 os.environ["GROQ_API_KEY"] = st.session_state.api_key
-# Modelo Vision Estable
 llm = ChatGroq(model="llama-3.2-11b-vision-preview", temperature=0.1)
 
 # --- 4. INTERFAZ ---
@@ -45,17 +42,17 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.rerun()
 
-# Procesamiento liviano de PDF (Sin FAISS para evitar errores de memoria)
+# Procesamiento de PDF
 contexto_txt = ""
 if pdf_file:
     reader = PdfReader(pdf_file)
-    # Leemos las primeras 20 páginas
-    paginas = min(len(reader.pages), 20)
+    paginas = min(len(reader.pages), 15)
     for i in range(paginas):
-        contexto_txt += reader.pages[i].extract_text() + "\n"
+        texto = reader.pages[i].extract_text()
+        if texto: contexto_txt += texto + "\n"
     st.sidebar.info(f"PDF cargado ({paginas} pág.)")
 
-# Convertir imagen a Base64
+# Imagen a Base64
 img_b64 = None
 if img_file:
     img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
@@ -71,19 +68,17 @@ if prompt := st.chat_input("Escribí acá..."):
     st.session_state.chat_history.append(HumanMessage(content=prompt))
     with st.chat_message("user"): st.markdown(prompt)
 
-    # Construimos el mensaje para Groq
+    # Construcción del contenido (MULTIMODAL)
     if img_b64:
-        # Formato Multimodal (Texto + Imagen)
-        content =
+        content_payload =
     else:
-        content = prompt
+        content_payload = prompt
 
     with st.spinner("Pensando..."):
         try:
-            sys_msg = SystemMessage(content=f"Eres un tutor nivel {nivel_edu}. Usa este contexto si es necesario: {contexto_txt[:5000]}")
-            user_msg = HumanMessage(content=content)
+            sys_msg = SystemMessage(content=f"Eres un tutor nivel {nivel_edu}. Contexto: {contexto_txt[:4000]}")
+            user_msg = HumanMessage(content=content_payload)
             
-            # Solo mandamos el sistema y el mensaje actual para evitar BadRequest
             response = llm.invoke([sys_msg, user_msg])
             
             st.session_state.chat_history.append(response)
@@ -91,3 +86,4 @@ if prompt := st.chat_input("Escribí acá..."):
             st.rerun()
         except Exception as e:
             st.error(f"Error: {e}")
+
