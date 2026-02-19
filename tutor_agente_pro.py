@@ -106,28 +106,56 @@ workflow.add_conditional_edges("tutor", router, {"examen": "examen", END: END})
 workflow.add_edge("examen", END)
 app = workflow.compile()
 
-# --- 5. INTERFAZ ---
+# --- 5. INTERFAZ ACTUALIZADA ---
 st.title("👨‍🏫 Tutor Agéntico con Memoria")
 
 with st.sidebar:
     st.success("Profesor Conectado")
-    nivel_edu = st.selectbox("Nivel del Alumno:", ["Primario", "Secundario", "Universidad"], index=1)
-    st.divider()
-    pdf_file = st.file_uploader("Programa (PDF)", type="pdf")
-    img_file = st.file_uploader("Foto Ejercicio", type=["jpg", "png", "jpeg"])
     
-    if st.button("🗑️ Reiniciar Clase"):
-        st.session_state.chat_history = []
-        st.session_state.contador = 0
-        st.rerun()
+    # 1. BOTONES DE CONTROL (ARRIBA DE TODO)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Reset", help="Borra el chat actual"):
+            st.session_state.chat_history = []
+            st.session_state.contador = 0
+            st.rerun()
+    with col2:
+        if st.button("🚪 Salir", help="Vuelve a la pantalla de login"):
+            st.session_state.autenticado = False
+            st.rerun()
 
-    if st.session_state.chat_history:
+    st.divider()
+    
+    # 2. SELECTOR DE NIVEL
+    nivel_edu = st.selectbox(
+        "Nivel del Alumno:", 
+        ["Primario", "Secundario", "Universidad"], 
+        index=1,
+        key="nivel_selector"
+    )
+    
+    # 3. BOTÓN DE DESCARGA (Solo si hay mensajes)
+    if len(st.session_state.chat_history) > 0:
         chat_text = "--- RESUMEN DE CLASE ---\n\n"
         for m in st.session_state.chat_history:
             autor = "ALUMNO" if isinstance(m, HumanMessage) else "PROFESOR"
             chat_text += f"[{autor}]: {m.content}\n\n"
-        st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain")
+        
+        st.download_button(
+            label="📄 Descargar Clase",
+            data=chat_text,
+            file_name="resumen_clase.txt",
+            mime="text/plain",
+            key="btn_descarga_final"
+        )
 
+    st.divider()
+    
+    # 4. CARGA DE ARCHIVOS
+    pdf_file = st.file_uploader("Programa (PDF)", type="pdf")
+    img_file = st.file_uploader("Foto Ejercicio", type=["jpg", "png", "jpeg"])
+
+# --- LÓGICA DE PROCESAMIENTO (FUERA DEL SIDEBAR) ---
 contexto = "General"
 if pdf_file:
     contexto = "".join([p.extract_text() for p in PdfReader(pdf_file).pages])
@@ -135,16 +163,19 @@ if pdf_file:
 img_b64 = None
 if img_file:
     img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
+    st.sidebar.image(img_file, caption="Imagen cargada")
 
-# Mostrar Chat
+# --- MOSTRAR CHAT ---
 for m in st.session_state.chat_history:
     with st.chat_message("assistant" if isinstance(m, AIMessage) else "user"):
         st.markdown(m.content)
 
+# --- INPUT DEL ALUMNO ---
 if prompt := st.chat_input("Escribí acá..."):
     new_user_msg = HumanMessage(content=prompt)
     st.session_state.chat_history.append(new_user_msg)
-    with st.chat_message("user"): st.markdown(prompt)
+    with st.chat_message("user"): 
+        st.markdown(prompt)
 
     with st.spinner("Analizando hilo de conversación..."):
         inputs = {
@@ -154,9 +185,19 @@ if prompt := st.chat_input("Escribí acá..."):
             "contador_pasos": st.session_state.contador,
             "nivel_educativo": nivel_edu
         }
+        
+        # Invocamos al grafo (App)
         output = app.invoke(inputs)
         resp_final = output["messages"][-1]
+        
+        # Guardamos estado y mostramos
         st.session_state.contador = output.get("contador_pasos", 0)
         st.session_state.chat_history.append(resp_final)
-        with st.chat_message("assistant"): st.markdown(resp_final.content)
+        
+        with st.chat_message("assistant"): 
+            st.markdown(resp_final.content)
+        
+        st.rerun() # Refrescamos para actualizar el botón de descarga en el sidebar
+
+
 
