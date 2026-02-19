@@ -1,7 +1,9 @@
 streamlit
 langchain-groq
+langgraph
 pypdf
 pillow
+
 
 
 
