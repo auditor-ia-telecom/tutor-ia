@@ -157,7 +157,7 @@ st.markdown("""
     border: 1px solid #d4a853 !important;
 }
 
-/* Download button */
+/* Download button — visible en sidebar oscuro */
 .stDownloadButton button {
     background: linear-gradient(135deg, #27ae60, #219a52) !important;
     color: white !important;
@@ -166,6 +166,13 @@ st.markdown("""
     font-family: 'Caveat', cursive !important;
     font-size: 1rem !important;
     font-weight: 700 !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3) !important;
+}
+.stDownloadButton button:hover {
+    background: linear-gradient(135deg, #2ecc71, #27ae60) !important;
+    transform: translateY(-2px) !important;
 }
 
 /* Spinner */
@@ -433,5 +440,6 @@ if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
                 st.markdown(resp_final.content)
         except Exception as e:
             st.error(f"❌ Error inesperado: {e}\n\nIntentá reiniciar la clase o verificar tu API Key.")
+
 
 
