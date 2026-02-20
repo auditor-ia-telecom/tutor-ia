@@ -769,4 +769,24 @@ if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
         except Exception as e:
-            st.error(f"❌ Error inesperado: {e}\n\nIntentá reiniciar la clase o verificar tu API Key.")
+            error_str = str(e).lower()
+            # Rate limit
+            if "rate_limit" in error_str or "rate limit" in error_str or "429" in error_str:
+                msgs = {
+                    "Primario":    "⏳ ¡Uy! El profe está muy ocupado ahora. Esperá 1 minutito y volvé a preguntar. 😊",
+                    "Secundario":  "⏳ Demasiadas consultas en este momento. Esperá un minuto y reintentá.",
+                    "Universidad": "⏳ Límite de consultas alcanzado. Por favor aguarde 60 segundos antes de reintentar.",
+                }
+                st.warning(msgs.get(nivel_edu, msgs["Secundario"]))
+            # Sin conexión / timeout
+            elif "timeout" in error_str or "connection" in error_str or "network" in error_str:
+                st.warning("🌐 Problema de conexión. Verificá tu internet y volvé a intentar.")
+            # Token / auth
+            elif "401" in error_str or "auth" in error_str or "api key" in error_str:
+                st.error("🔑 Error de autenticación. Contactá al administrador.")
+            # Cualquier otro error
+            else:
+                st.warning("⚠️ Algo salió mal. Esperá unos segundos y volvé a intentar. Si el problema persiste, usá el botón 🗑️ Reiniciar.")
+            # Quitamos el último mensaje del historial para no dejar mensaje sin respuesta
+            if st.session_state.chat_history and isinstance(st.session_state.chat_history[-1], HumanMessage):
+                st.session_state.chat_history.pop()
