@@ -748,8 +748,8 @@ for m in st.session_state.chat_history:
 spinner_msg = TEMAS[nivel_edu]["spinner_msg"]
 
 st.markdown(f"""
-<div style="position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
-     width:auto; max-width:680px;
+<div style="position:fixed; bottom:70px; left:calc(50% + 140px); transform:translateX(-50%);
+     width:auto; max-width:580px;
      background:rgba(255,255,255,0.82); border-radius:20px;
      padding:5px 18px; text-align:center;
      font-family:'Nunito',sans-serif; font-size:0.78rem; color:#888;
