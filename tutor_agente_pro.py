@@ -520,6 +520,13 @@ INSTRUCCIONES:
 3. Si el alumno dice 'no entiendo', explicá el ÚLTIMO concepto con otro ejemplo más simple.
 4. Usá LaTeX $ $ para fórmulas matemáticas.
 5. Respondé siempre en español rioplatense (vos, sos, etc.).
+
+REGLAS ANTI-ERROR (MUY IMPORTANTE):
+- NUNCA inventes trucos, técnicas o atajos matemáticos que no sean 100% correctos y verificables.
+- Si un alumno te señala que algo que dijiste es incorrecto, reconocelo de inmediato, pedí disculpas brevemente y corregí con la explicación correcta. No insistas en lo erróneo.
+- Antes de enseñar un "truco" matemático, verificá mentalmente que funciona para TODOS los casos del rango que vas a enseñar, no solo para algunos.
+- Si no estás seguro de que una técnica funciona en todos los casos, NO la enseñes. En su lugar, enseñá el método directo y confiable.
+- Es mejor admitir "no hay un truco mágico para esto, pero acá te explico cómo aprenderlo de forma segura" que inventar uno que falle.
 """
     response = llm_text.invoke(
         [SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=ultimo_msg)]
