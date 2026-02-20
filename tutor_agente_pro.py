@@ -201,6 +201,9 @@ defaults = {
     "ultima_imagen_id": None,
     "descripcion_imagen": None,
     "nivel_actual": "Secundario",
+    "nombre_alumno": "",
+    "token_vence": "",
+    "dias_restantes": 0,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -406,7 +409,40 @@ def inyectar_tema(nivel: str):
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# LOGIN
+# SISTEMA DE TOKENS
+# ─────────────────────────────────────────────
+import hmac as _hmac
+import hashlib as _hashlib
+import base64 as _base64
+from datetime import datetime as _datetime
+
+def verificar_token(token: str) -> dict:
+    """Verifica si el token es válido, auténtico y no venció."""
+    try:
+        clave = st.secrets.get("TOKEN_SECRET", "TutorIA_2025_ClaveSecreta_Cambiame")
+        token_raw = _base64.urlsafe_b64decode(token.strip().encode()).decode()
+        partes = token_raw.split("|")
+        if len(partes) != 3:
+            return {"valido": False, "motivo": "Token incorrecto"}
+        nombre, vencimiento, firma_recibida = partes
+        datos = f"{nombre}|{vencimiento}"
+        firma_esperada = _hmac.new(
+            clave.encode(), datos.encode(), _hashlib.sha256
+        ).hexdigest()[:12]
+        if not _hmac.compare_digest(firma_recibida, firma_esperada):
+            return {"valido": False, "motivo": "Token inválido"}
+        fecha_venc = _datetime.strptime(vencimiento, "%Y%m%d")
+        if _datetime.now() > fecha_venc:
+            dias_vencido = (_datetime.now() - fecha_venc).days
+            return {"valido": False, "motivo": f"Tu acceso venció hace {dias_vencido} día(s). Renovalo contactando al profe."}
+        dias_restantes = (fecha_venc - _datetime.now()).days
+        return {"valido": True, "nombre": nombre,
+                "vence": fecha_venc.strftime("%d/%m/%Y"), "dias_restantes": dias_restantes}
+    except Exception:
+        return {"valido": False, "motivo": "Token incorrecto. Verificá que lo copiaste bien."}
+
+# ─────────────────────────────────────────────
+# LOGIN CON TOKEN
 # ─────────────────────────────────────────────
 if not st.session_state.autenticado:
     inyectar_tema("Secundario")
@@ -414,24 +450,33 @@ if not st.session_state.autenticado:
     <div style='text-align:center; padding: 2rem 0 1rem;'>
         <div style='font-size:4rem;'>🏫</div>
         <h1 style='font-family: Caveat, cursive; font-size:2.5rem; color:#283593;'>Aula Virtual IA</h1>
-        <p style='font-family: Nunito, sans-serif; color:#555;'>Ingresá tu API Key de Groq para comenzar la clase</p>
+        <p style='font-family: Nunito, sans-serif; color:#555;'>
+            Ingresá tu código de acceso para comenzar la clase.<br>
+            <small>¿No tenés uno? Contactá al profe 📲</small>
+        </p>
     </div>""", unsafe_allow_html=True)
-    key_input = st.text_input("🔑 Groq API Key:", type="password", placeholder="gsk_...").strip()
+    token_input = st.text_input("🎟️ Código de acceso:", placeholder="Pegá tu token acá...").strip()
     col_a, col_b, col_c = st.columns([1,2,1])
     with col_b:
         if st.button("✏️ Entrar al Aula", use_container_width=True):
-            if key_input.startswith("gsk_"):
-                st.session_state.api_key = key_input
-                st.session_state.autenticado = True
-                st.rerun()
+            if token_input:
+                resultado = verificar_token(token_input)
+                if resultado["valido"]:
+                    st.session_state.autenticado      = True
+                    st.session_state.nombre_alumno    = resultado["nombre"]
+                    st.session_state.token_vence      = resultado["vence"]
+                    st.session_state.dias_restantes   = resultado["dias_restantes"]
+                    st.rerun()
+                else:
+                    st.error(f"❌ {resultado['motivo']}")
             else:
-                st.error("La clave debe empezar con 'gsk_'.")
+                st.warning("Ingresá tu código de acceso.")
     st.stop()
 
 # ─────────────────────────────────────────────
-# MODELOS
+# MODELOS — API Key oculta en Streamlit Secrets
 # ─────────────────────────────────────────────
-os.environ["GROQ_API_KEY"] = st.session_state.api_key
+os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
 MODEL_TEXT = "llama-3.3-70b-versatile"
 VISION_MODELS = [
@@ -556,7 +601,21 @@ app = workflow.compile()
 # Sidebar primero para leer el nivel antes de inyectar el tema
 with st.sidebar:
     st.markdown("<div style='font-family: Caveat, cursive; font-size:1.4rem; color:#f0e68c; text-align:center;'>🏫 Aula Virtual</div>", unsafe_allow_html=True)
-    st.success("✅ Profesor Conectado")
+    # Info del alumno logueado
+    nombre = st.session_state.get("nombre_alumno", "")
+    vence  = st.session_state.get("token_vence", "")
+    dias   = st.session_state.get("dias_restantes", 0)
+    if nombre:
+        st.markdown(f"""
+<div style='background:rgba(39,174,96,0.25); border:1px solid rgba(39,174,96,0.5);
+     border-radius:8px; padding:8px 12px; text-align:center;'>
+  <div style='font-family:Caveat,cursive; font-size:1.1rem; color:#fff;'>✅ {nombre}</div>
+  <div style='font-size:0.75rem; color:rgba(255,255,255,0.75);'>
+    Acceso hasta: {vence} · {dias}d restantes
+  </div>
+</div>""", unsafe_allow_html=True)
+    else:
+        st.success("✅ Conectado")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -570,7 +629,9 @@ with st.sidebar:
         if st.button("🚪 Salir", use_container_width=True):
             for k, v in defaults.items():
                 st.session_state[k] = v
-            st.session_state.api_key = ""
+            st.session_state.nombre_alumno  = ""
+            st.session_state.token_vence    = ""
+            st.session_state.dias_restantes = 0
             st.rerun()
 
     st.divider()
