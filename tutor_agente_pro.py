@@ -687,6 +687,15 @@ titulos = {
 }
 st.title(titulos[nivel_edu])
 
+st.markdown(f"""
+<div style="background:rgba(255,255,255,0.65); border-left: 4px solid {TEMAS[nivel_edu]['borde_asist']};
+     border-radius:8px; padding:8px 14px; margin-bottom:8px;
+     font-family:'Nunito',sans-serif; font-size:0.82rem; color:#555;">
+  ⚠️ <b>Academia Particular IA</b> utiliza inteligencia artificial y puede cometer errores.
+  Por favor, verificá las respuestas importantes con tu docente.
+</div>
+""", unsafe_allow_html=True)
+
 # PDF
 contexto = "General"
 if pdf_file:
