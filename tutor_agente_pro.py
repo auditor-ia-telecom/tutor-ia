@@ -687,15 +687,6 @@ titulos = {
 }
 st.title(titulos[nivel_edu])
 
-st.markdown(f"""
-<div style="background:rgba(255,255,255,0.65); border-left: 4px solid {TEMAS[nivel_edu]['borde_asist']};
-     border-radius:8px; padding:8px 14px; margin-bottom:8px;
-     font-family:'Nunito',sans-serif; font-size:0.82rem; color:#555;">
-  ⚠️ <b>Academia Particular IA</b> utiliza inteligencia artificial y puede cometer errores.
-  Por favor, verificá las respuestas importantes con tu docente.
-</div>
-""", unsafe_allow_html=True)
-
 # PDF
 contexto = "General"
 if pdf_file:
@@ -755,6 +746,18 @@ for m in st.session_state.chat_history:
             st.markdown(m.content)
 
 spinner_msg = TEMAS[nivel_edu]["spinner_msg"]
+
+st.markdown(f"""
+<div style="position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
+     width:auto; max-width:680px;
+     background:rgba(255,255,255,0.82); border-radius:20px;
+     padding:5px 18px; text-align:center;
+     font-family:'Nunito',sans-serif; font-size:0.78rem; color:#888;
+     box-shadow: 0 1px 6px rgba(0,0,0,0.08); z-index:999;
+     backdrop-filter: blur(4px);">
+  <b>Academia Particular IA</b> utiliza inteligencia artificial y puede cometer errores. Por favor, verificá las respuestas importantes con tu docente.
+</div>
+""", unsafe_allow_html=True)
 
 if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
     new_user_msg = HumanMessage(content=prompt)
