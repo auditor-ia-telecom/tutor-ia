@@ -5,7 +5,6 @@ import sys
 from typing import TypedDict, List
 from pypdf import PdfReader
 
-# Forzamos UTF-8 para evitar errores de ASCII en Windows
 if sys.stdout.encoding != 'utf-8':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -14,50 +13,237 @@ from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 
-# --- ESTILOS VISUALES ---
-st.markdown("""
+# ─────────────────────────────────────────────
+# AVATARES SVG inline (base64 para usar en CSS)
+# ─────────────────────────────────────────────
+
+# Maestra primaria — delantal rosado, pelo recogido, sonrisa
+SVG_PRIMARIO = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="56" height="56">
+  <!-- cuerpo delantal -->
+  <ellipse cx="50" cy="78" rx="26" ry="22" fill="#f48fb1"/>
+  <rect x="36" y="62" width="28" height="30" rx="6" fill="#f48fb1"/>
+  <!-- cuello -->
+  <rect x="44" y="56" width="12" height="12" rx="4" fill="#ffe0b2"/>
+  <!-- cabeza -->
+  <circle cx="50" cy="46" r="20" fill="#ffe0b2"/>
+  <!-- pelo castaño recogido -->
+  <ellipse cx="50" cy="30" rx="20" ry="12" fill="#6d4c41"/>
+  <circle cx="50" cy="28" r="10" fill="#6d4c41"/>
+  <circle cx="64" cy="33" r="7" fill="#6d4c41"/>
+  <!-- rodete -->
+  <circle cx="67" cy="28" r="6" fill="#6d4c41"/>
+  <!-- ojos -->
+  <circle cx="44" cy="46" r="3" fill="#fff"/>
+  <circle cx="56" cy="46" r="3" fill="#fff"/>
+  <circle cx="44.8" cy="46.5" r="1.6" fill="#333"/>
+  <circle cx="56.8" cy="46.5" r="1.6" fill="#333"/>
+  <!-- sonrisa -->
+  <path d="M44 53 Q50 59 56 53" stroke="#c0392b" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- mejillas -->
+  <circle cx="41" cy="52" r="3" fill="#f8bbd0" opacity="0.7"/>
+  <circle cx="59" cy="52" r="3" fill="#f8bbd0" opacity="0.7"/>
+  <!-- manzana en mano -->
+  <circle cx="76" cy="72" r="7" fill="#e53935"/>
+  <path d="M76 65 Q78 62 80 64" stroke="#388e3c" stroke-width="1.5" fill="none"/>
+</svg>
+"""
+
+# Tutor secundario — joven, camisa azul, corbata, pelo corto
+SVG_SECUNDARIO = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="56" height="56">
+  <!-- cuerpo camisa -->
+  <rect x="30" y="62" width="40" height="32" rx="8" fill="#1565c0"/>
+  <!-- corbata -->
+  <polygon points="50,64 53,72 50,80 47,72" fill="#e53935"/>
+  <!-- cuello -->
+  <rect x="43" y="56" width="14" height="12" rx="4" fill="#ffe0b2"/>
+  <!-- solapa izq -->
+  <polygon points="43,63 38,75 45,68" fill="#0d47a1"/>
+  <!-- solapa der -->
+  <polygon points="57,63 62,75 55,68" fill="#0d47a1"/>
+  <!-- cabeza -->
+  <circle cx="50" cy="45" r="20" fill="#ffe0b2"/>
+  <!-- pelo corto oscuro -->
+  <ellipse cx="50" cy="30" rx="20" ry="10" fill="#212121"/>
+  <rect x="30" y="28" width="40" height="12" rx="6" fill="#212121"/>
+  <!-- ojos -->
+  <circle cx="44" cy="45" r="3" fill="#fff"/>
+  <circle cx="56" cy="45" r="3" fill="#fff"/>
+  <circle cx="44.8" cy="45.5" r="1.6" fill="#1a237e"/>
+  <circle cx="56.8" cy="45.5" r="1.6" fill="#1a237e"/>
+  <!-- sonrisa leve -->
+  <path d="M45 52 Q50 57 55 52" stroke="#c0392b" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- mejillas -->
+  <circle cx="41" cy="50" r="3" fill="#ffccbc" opacity="0.6"/>
+  <circle cx="59" cy="50" r="3" fill="#ffccbc" opacity="0.6"/>
+</svg>
+"""
+
+# Profesor universitario — señor mayor, traje marrón, anteojos, barba canosa
+SVG_UNIVERSIDAD = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="56" height="56">
+  <!-- cuerpo traje marrón -->
+  <rect x="28" y="62" width="44" height="32" rx="8" fill="#5d4037"/>
+  <!-- camisa blanca interior -->
+  <rect x="44" y="63" width="12" height="20" fill="#fafafa"/>
+  <!-- corbata oscura -->
+  <polygon points="50,64 52,71 50,78 48,71" fill="#3e2723"/>
+  <!-- solapa izq -->
+  <polygon points="44,63 30,80 42,70" fill="#4e342e"/>
+  <!-- solapa der -->
+  <polygon points="56,63 70,80 58,70" fill="#4e342e"/>
+  <!-- cuello -->
+  <rect x="43" y="55" width="14" height="12" rx="4" fill="#d7b896"/>
+  <!-- cabeza -->
+  <circle cx="50" cy="44" r="20" fill="#d7b896"/>
+  <!-- pelo canoso corto -->
+  <ellipse cx="50" cy="29" rx="20" ry="9" fill="#9e9e9e"/>
+  <rect x="30" y="27" width="40" height="10" rx="5" fill="#9e9e9e"/>
+  <!-- entradas -->
+  <ellipse cx="33" cy="35" rx="5" ry="8" fill="#d7b896"/>
+  <ellipse cx="67" cy="35" rx="5" ry="8" fill="#d7b896"/>
+  <!-- barba canosa -->
+  <ellipse cx="50" cy="60" rx="13" ry="7" fill="#bdbdbd" opacity="0.8"/>
+  <!-- bigote -->
+  <ellipse cx="50" cy="54" rx="8" ry="3" fill="#9e9e9e"/>
+  <!-- ojos -->
+  <circle cx="43" cy="44" r="3.5" fill="#fff"/>
+  <circle cx="57" cy="44" r="3.5" fill="#fff"/>
+  <circle cx="43.5" cy="44.5" r="1.8" fill="#4e342e"/>
+  <circle cx="57.5" cy="44.5" r="1.8" fill="#4e342e"/>
+  <!-- anteojos armazón -->
+  <rect x="38" y="40" width="11" height="8" rx="3" fill="none" stroke="#5d4037" stroke-width="1.5"/>
+  <rect x="51" y="40" width="11" height="8" rx="3" fill="none" stroke="#5d4037" stroke-width="1.5"/>
+  <line x1="49" y1="44" x2="51" y2="44" stroke="#5d4037" stroke-width="1.5"/>
+  <line x1="30" y1="43" x2="38" y2="43" stroke="#5d4037" stroke-width="1.5"/>
+  <line x1="62" y1="43" x2="70" y2="43" stroke="#5d4037" stroke-width="1.5"/>
+  <!-- expresión seria pero amable -->
+  <path d="M45 52 Q50 55 55 52" stroke="#8d6e63" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+</svg>
+"""
+
+def svg_to_b64(svg_str):
+    return base64.b64encode(svg_str.strip().encode()).decode()
+
+AVATARES = {
+    "Primario":    svg_to_b64(SVG_PRIMARIO),
+    "Secundario":  svg_to_b64(SVG_SECUNDARIO),
+    "Universidad": svg_to_b64(SVG_UNIVERSIDAD),
+}
+
+# ─────────────────────────────────────────────
+# TEMAS DE COLOR POR NIVEL
+# ─────────────────────────────────────────────
+TEMAS = {
+    "Primario": {
+        "bg":           "linear-gradient(135deg, #fffde7 0%, #fff9c4 40%, #fff59d 70%, #fff176 100%)",
+        "marco":        "#f9a825",
+        "marco_glow":   "rgba(249,168,37,0.18)",
+        "linea_asist":  "#ffe082",
+        "linea_user":   "#fce4ec",
+        "borde_asist":  "#f9a825",
+        "borde_user":   "#e91e63",
+        "input_borde":  "#f9a825",
+        "titulo_color": "#e65100",
+        "sidebar_bg":   "linear-gradient(180deg, #fb8c00 0%, #f57c00 50%, #e65100 100%)",
+        "sidebar_borde":"#bf360c",
+        "label_color":  "#fff9c4",
+        "emoji_bar":    "🌈 ✏️ 🎨 📏 🌟",
+        "spinner_msg":  "🍎 La seño está pensando...",
+    },
+    "Secundario": {
+        "bg":           "linear-gradient(135deg, #e8f5e9 0%, #e3f2fd 40%, #ede7f6 70%, #e8eaf6 100%)",
+        "marco":        "#5c6bc0",
+        "marco_glow":   "rgba(92,107,192,0.15)",
+        "linea_asist":  "#c5cae9",
+        "linea_user":   "#fce4ec",
+        "borde_asist":  "#3949ab",
+        "borde_user":   "#e53935",
+        "input_borde":  "#5c6bc0",
+        "titulo_color": "#283593",
+        "sidebar_bg":   "linear-gradient(180deg, #1a237e 0%, #283593 50%, #1a237e 100%)",
+        "sidebar_borde":"#0d47a1",
+        "label_color":  "#c5cae9",
+        "emoji_bar":    "📱 🎧 ✏️ 💡 🚀",
+        "spinner_msg":  "💬 Tu profe está respondiendo...",
+    },
+    "Universidad": {
+        "bg":           "linear-gradient(135deg, #eceff1 0%, #e0e6ea 30%, #cfd8dc 60%, #b0bec5 100%)",
+        "marco":        "#546e7a",
+        "marco_glow":   "rgba(84,110,122,0.15)",
+        "linea_asist":  "#b0bec5",
+        "linea_user":   "#e8eaf6",
+        "borde_asist":  "#37474f",
+        "borde_user":   "#5c6bc0",
+        "input_borde":  "#546e7a",
+        "titulo_color": "#263238",
+        "sidebar_bg":   "linear-gradient(180deg, #263238 0%, #37474f 50%, #263238 100%)",
+        "sidebar_borde":"#102027",
+        "label_color":  "#b0bec5",
+        "emoji_bar":    "🔬 📐 🧮 📊 🎓",
+        "spinner_msg":  "📖 El Dr. está elaborando la respuesta...",
+    },
+}
+
+# ─────────────────────────────────────────────
+# CONFIGURACIÓN DE PÁGINA (debe ir antes de todo widget)
+# ─────────────────────────────────────────────
+st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓")
+
+# ─────────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────────
+defaults = {
+    "autenticado": False,
+    "chat_history": [],
+    "contador": 0,
+    "ultima_imagen_id": None,
+    "descripcion_imagen": None,
+    "nivel_actual": "Secundario",
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# ─────────────────────────────────────────────
+# CSS DINÁMICO según nivel
+# ─────────────────────────────────────────────
+def inyectar_tema(nivel: str):
+    t = TEMAS[nivel]
+    av = AVATARES[nivel]
+    st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap');
 
-/* Fondo general con gradiente suave tipo papel/aula */
-.stApp {
-    background: linear-gradient(135deg, #fef9f0 0%, #fdf0e0 30%, #f5e6d3 60%, #ede0d4 100%);
+.stApp {{
+    background: {t['bg']};
     font-family: 'Nunito', sans-serif;
-}
-
-/* Título principal estilo pizarra */
-.stApp h1 {
+    transition: background 0.6s ease;
+}}
+.stApp h1 {{
     font-family: 'Caveat', cursive !important;
     font-size: 2.6rem !important;
-    color: #2c3e50 !important;
+    color: {t['titulo_color']} !important;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     letter-spacing: 1px;
-}
-
-/* Sidebar con textura de madera/pizarra lateral */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #2c3e50 0%, #34495e 40%, #2c3e50 100%) !important;
-    border-right: 4px solid #8B6914;
+}}
+[data-testid="stSidebar"] {{
+    background: {t['sidebar_bg']} !important;
+    border-right: 4px solid {t['sidebar_borde']};
     box-shadow: 4px 0 15px rgba(0,0,0,0.3);
-}
-
-[data-testid="stSidebar"] * {
-    color: #ecf0f1 !important;
-}
-
+}}
+[data-testid="stSidebar"] * {{ color: #ecf0f1 !important; }}
 [data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] .stFileUploader label {
-    color: #f0e68c !important;
+[data-testid="stSidebar"] .stFileUploader label {{
+    color: {t['label_color']} !important;
     font-family: 'Caveat', cursive !important;
     font-size: 1.1rem !important;
-}
-
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+}}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {{
     color: #ecf0f1 !important;
-}
-
-/* Botones sidebar */
-[data-testid="stSidebar"] .stButton button {
+}}
+[data-testid="stSidebar"] .stButton button {{
     background: linear-gradient(135deg, #e67e22, #d35400) !important;
     color: white !important;
     border: none !important;
@@ -67,154 +253,120 @@ st.markdown("""
     font-weight: 700 !important;
     transition: all 0.2s ease !important;
     box-shadow: 0 3px 8px rgba(0,0,0,0.3) !important;
-}
-[data-testid="stSidebar"] .stButton button:hover {
+}}
+[data-testid="stSidebar"] .stButton button:hover {{
     transform: translateY(-2px) !important;
     box-shadow: 0 5px 12px rgba(0,0,0,0.4) !important;
-}
-
-/* Área del chat — efecto cuaderno con renglones */
-[data-testid="stChatMessageContent"] {
-    background: rgba(255,255,255,0.85) !important;
+}}
+/* Mensajes del asistente con avatar SVG */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {{
+    background: rgba(255,255,255,0.88) !important;
     border-radius: 12px !important;
-    border-left: 4px solid #3498db !important;
+    border-left: 4px solid {t['borde_asist']} !important;
     padding: 12px 16px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
     font-family: 'Nunito', sans-serif !important;
     background-image: repeating-linear-gradient(
-        transparent,
-        transparent 27px,
-        #c8e6f5 27px,
-        #c8e6f5 28px
+        transparent, transparent 27px,
+        {t['linea_asist']} 27px, {t['linea_asist']} 28px
     ) !important;
     background-size: 100% 28px !important;
     line-height: 28px !important;
-}
-
+}}
 /* Mensajes del usuario */
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {
-    border-left: 4px solid #e74c3c !important;
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
+    background: rgba(255,255,255,0.80) !important;
+    border-radius: 12px !important;
+    border-left: 4px solid {t['borde_user']} !important;
+    padding: 12px 16px !important;
     background-image: repeating-linear-gradient(
-        transparent,
-        transparent 27px,
-        #fde8e8 27px,
-        #fde8e8 28px
+        transparent, transparent 27px,
+        {t['linea_user']} 27px, {t['linea_user']} 28px
     ) !important;
-}
-
-/* Input del chat */
-[data-testid="stChatInput"] {
+    background-size: 100% 28px !important;
+    line-height: 28px !important;
+}}
+/* Avatar del asistente → SVG del nivel */
+[data-testid="stChatMessageAvatarAssistant"] {{
+    background-image: url("data:image/svg+xml;base64,{av}") !important;
+    background-size: cover !important;
+    background-color: transparent !important;
+    border-radius: 50% !important;
+    border: 2px solid {t['borde_asist']} !important;
+}}
+[data-testid="stChatMessageAvatarAssistant"] > * {{ display: none !important; }}
+/* Input */
+[data-testid="stChatInput"] {{
     background: rgba(255,255,255,0.9) !important;
     border-radius: 16px !important;
-    border: 2px solid #8B6914 !important;
-    box-shadow: 0 4px 12px rgba(139,105,20,0.2) !important;
-}
-[data-testid="stChatInput"] textarea {
+    border: 2px solid {t['input_borde']} !important;
+    box-shadow: 0 4px 12px {t['marco_glow']} !important;
+}}
+[data-testid="stChatInput"] textarea {{
     font-family: 'Caveat', cursive !important;
     font-size: 1.1rem !important;
-    color: #2c3e50 !important;
-}
-
-/* Marco tipo pizarra alrededor del área principal */
-.main .block-container {
+    color: {t['titulo_color']} !important;
+}}
+/* Marco área principal */
+.main .block-container {{
     background: rgba(255,255,255,0.6) !important;
     border-radius: 20px !important;
-    border: 3px solid #8B6914 !important;
+    border: 3px solid {t['marco']} !important;
     box-shadow:
-        0 0 0 6px rgba(139,105,20,0.15),
+        0 0 0 6px {t['marco_glow']},
         0 8px 32px rgba(0,0,0,0.12),
         inset 0 1px 0 rgba(255,255,255,0.8) !important;
     padding: 2rem 2.5rem !important;
     margin-top: 1rem !important;
-}
-
-/* Lápices decorativos usando pseudo-elementos en el título */
-.pencil-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 0.5rem;
-    font-size: 1.8rem;
-    letter-spacing: 4px;
-}
-
-/* Divider sidebar */
-[data-testid="stSidebar"] hr {
-    border-color: rgba(255,255,255,0.2) !important;
-}
-
-/* Success box */
-[data-testid="stSidebar"] [data-testid="stAlert"] {
+}}
+.pencil-bar {{
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 0.5rem; font-size: 1.8rem; letter-spacing: 4px;
+}}
+[data-testid="stSidebar"] hr {{ border-color: rgba(255,255,255,0.2) !important; }}
+[data-testid="stSidebar"] [data-testid="stAlert"] {{
     background: rgba(39,174,96,0.25) !important;
     border: 1px solid rgba(39,174,96,0.5) !important;
     border-radius: 8px !important;
-}
-
-/* Expander */
-[data-testid="stExpander"] {
+}}
+[data-testid="stExpander"] {{
     background: rgba(255,255,255,0.7) !important;
     border-radius: 10px !important;
-    border: 1px solid #d4a853 !important;
-}
-
-/* Download button — visible en sidebar oscuro */
-.stDownloadButton button {
+    border: 1px solid {t['marco']} !important;
+}}
+.stDownloadButton button {{
     background: linear-gradient(135deg, #27ae60, #219a52) !important;
-    color: white !important;
-    border: none !important;
+    color: white !important; border: none !important;
     border-radius: 8px !important;
     font-family: 'Caveat', cursive !important;
-    font-size: 1rem !important;
-    font-weight: 700 !important;
-    width: 100% !important;
-    margin-top: 8px !important;
+    font-size: 1rem !important; font-weight: 700 !important;
+    width: 100% !important; margin-top: 8px !important;
     box-shadow: 0 3px 8px rgba(0,0,0,0.3) !important;
-}
-.stDownloadButton button:hover {
+}}
+.stDownloadButton button:hover {{
     background: linear-gradient(135deg, #2ecc71, #27ae60) !important;
     transform: translateY(-2px) !important;
-}
-
-/* Spinner */
-.stSpinner {
-    color: #e67e22 !important;
-}
-
-/* Selectbox */
-[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
+}}
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {{
     background: rgba(255,255,255,0.15) !important;
     border-radius: 8px !important;
     border: 1px solid rgba(255,255,255,0.3) !important;
-}
+}}
 </style>
-
-<!-- Barra de lápices decorativa -->
-<div class="pencil-bar">✏️ 📏 🖊️ 📐 ✏️</div>
+<div class="pencil-bar">{t['emoji_bar']}</div>
 """, unsafe_allow_html=True)
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓")
-
-defaults = {
-    "autenticado": False,
-    "chat_history": [],
-    "contador": 0,
-    "ultima_imagen_id": None,
-    "descripcion_imagen": None,
-}
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-# --- 2. PANTALLA DE LOGIN ---
+# ─────────────────────────────────────────────
+# LOGIN
+# ─────────────────────────────────────────────
 if not st.session_state.autenticado:
+    inyectar_tema("Secundario")
     st.markdown("""
     <div style='text-align:center; padding: 2rem 0 1rem;'>
         <div style='font-size:4rem;'>🏫</div>
-        <h1 style='font-family: Caveat, cursive; font-size:2.5rem; color:#2c3e50;'>Aula Virtual IA</h1>
+        <h1 style='font-family: Caveat, cursive; font-size:2.5rem; color:#283593;'>Aula Virtual IA</h1>
         <p style='font-family: Nunito, sans-serif; color:#555;'>Ingresá tu API Key de Groq para comenzar la clase</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
     key_input = st.text_input("🔑 Groq API Key:", type="password", placeholder="gsk_...").strip()
     col_a, col_b, col_c = st.columns([1,2,1])
     with col_b:
@@ -227,7 +379,9 @@ if not st.session_state.autenticado:
                 st.error("La clave debe empezar con 'gsk_'.")
     st.stop()
 
-# --- 3. CONFIGURACIÓN DEL MODELO ---
+# ─────────────────────────────────────────────
+# MODELOS
+# ─────────────────────────────────────────────
 os.environ["GROQ_API_KEY"] = st.session_state.api_key
 
 MODEL_TEXT = "llama-3.3-70b-versatile"
@@ -243,14 +397,13 @@ except Exception as e:
     st.stop()
 
 def get_vision_llm():
-    for model_name in VISION_MODELS:
+    for m in VISION_MODELS:
         try:
-            return ChatGroq(model=model_name, temperature=0.1)
+            return ChatGroq(model=m, temperature=0.1)
         except Exception:
             continue
     return None
 
-# --- 4. DESCRIPCIÓN AUTOMÁTICA DE IMAGEN ---
 def describir_imagen_automaticamente(img_b64: str) -> str:
     llm_vision = get_vision_llm()
     if llm_vision is None:
@@ -269,7 +422,9 @@ def describir_imagen_automaticamente(img_b64: str) -> str:
     except Exception as e:
         return f"No se pudo analizar la imagen: {e}"
 
-# --- 5. AGENTE LANGGRAPH ---
+# ─────────────────────────────────────────────
+# AGENTE LANGGRAPH
+# ─────────────────────────────────────────────
 class AgentState(TypedDict):
     messages: List[BaseMessage]
     contexto_programa: str
@@ -279,13 +434,12 @@ class AgentState(TypedDict):
 
 def tutor_node(state: AgentState):
     ultimo_msg = state['messages'][-1].content
-
     roles = {
         "Primario": (
-            "Sos un maestro de primaria cariñoso y paciente. "
+            "Sos una maestra de primaria cariñosa y muy paciente. "
             "Usás palabras simples, analogías con juguetes o animales, frases cortas. "
             "Nunca usés fórmulas sin explicarlas con ejemplos del día a día. "
-            "Celebrá cada avance del alumno con entusiasmo."
+            "Celebrá cada avance del alumno con mucho entusiasmo y emojis."
         ),
         "Secundario": (
             "Sos un tutor de secundaria motivador y cercano. "
@@ -294,14 +448,13 @@ def tutor_node(state: AgentState):
             "Sos directo pero amable, como un compañero mayor que sabe mucho."
         ),
         "Universidad": (
-            "Sos un profesor universitario de ingeniería riguroso y preciso. "
+            "Sos un profesor universitario riguroso y preciso. "
             "Usás notación técnica, asumís conocimientos previos sólidos. "
             "Vas directo al rigor matemático y conceptual. "
-            "Ofrecés demostraciones, casos borde y referencias técnicas cuando corresponde."
+            "Ofrecés demostraciones, casos borde y referencias cuando corresponde."
         ),
     }
     perfil = roles.get(state['nivel_educativo'], roles["Secundario"])
-
     contexto_imagen = ""
     if state.get("descripcion_imagen"):
         contexto_imagen = f"""
@@ -309,27 +462,19 @@ IMAGEN ANALIZADA EN ESTA CLASE:
 {state['descripcion_imagen']}
 Usá esta descripción para responder cualquier pregunta sobre la imagen aunque ya no esté adjunta.
 """
-
     sys_prompt = f"""
 {perfil}
-
 {contexto_imagen}
-
 INSTRUCCIONES:
-1. Seguí el HILO de la conversación. No cambies de tema hasta que el alumno entienda.
-2. El PROGRAMA ({state['contexto_programa']}) es tu guía de nivel y contenido.
+1. Seguí el HILO de la conversación hasta que el alumno entienda.
+2. El PROGRAMA ({state['contexto_programa']}) es tu guía de contenido.
 3. Si el alumno dice 'no entiendo', explicá el ÚLTIMO concepto con otro ejemplo más simple.
 4. Usá LaTeX $ $ para fórmulas matemáticas.
 5. Respondé siempre en español rioplatense (vos, sos, etc.).
 """
-
-    try:
-        response = llm_text.invoke(
-            [SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=ultimo_msg)]
-        )
-    except Exception:
-        raise
-
+    response = llm_text.invoke(
+        [SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=ultimo_msg)]
+    )
     return {"messages": [response], "contador_pasos": state.get("contador_pasos", 0) + 1}
 
 def examen_node(state: AgentState):
@@ -338,9 +483,7 @@ def examen_node(state: AgentState):
     return {"messages": [AIMessage(content=f"🎓 **DESAFÍO ({state['nivel_educativo']}):** {response.content}")]}
 
 def router(state: AgentState):
-    if state.get("contador_pasos", 0) >= 6:
-        return "examen"
-    return END
+    return "examen" if state.get("contador_pasos", 0) >= 6 else END
 
 workflow = StateGraph(AgentState)
 workflow.add_node("tutor", tutor_node)
@@ -350,9 +493,11 @@ workflow.add_conditional_edges("tutor", router, {"examen": "examen", END: END})
 workflow.add_edge("examen", END)
 app = workflow.compile()
 
-# --- 6. INTERFAZ ---
-st.title("👨‍🏫 Tutor Agéntico con Memoria")
+# ─────────────────────────────────────────────
+# INTERFAZ PRINCIPAL
+# ─────────────────────────────────────────────
 
+# Sidebar primero para leer el nivel antes de inyectar el tema
 with st.sidebar:
     st.markdown("<div style='font-family: Caveat, cursive; font-size:1.4rem; color:#f0e68c; text-align:center;'>🏫 Aula Virtual</div>", unsafe_allow_html=True)
     st.success("✅ Profesor Conectado")
@@ -373,12 +518,22 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    nivel_edu = st.selectbox("📚 Nivel del Alumno:", ["Primario", "Secundario", "Universidad"], index=1)
-    st.divider()
-    pdf_file = st.file_uploader("📄 Programa (PDF)", type="pdf")
-    img_file = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg", "png", "jpeg"])
+    nivel_edu = st.selectbox(
+        "📚 Nivel del Alumno:",
+        ["Primario", "Secundario", "Universidad"],
+        index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual)
+    )
+    # Detectamos cambio de nivel y reiniciamos chat si cambió
+    if nivel_edu != st.session_state.nivel_actual:
+        st.session_state.nivel_actual = nivel_edu
+        st.session_state.chat_history = []
+        st.session_state.contador = 0
+        st.rerun()
 
-    # Detección dinámica de imagen nueva
+    st.divider()
+    pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
+    img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
+
     if img_file:
         imagen_id = f"{img_file.name}_{img_file.size}"
         if imagen_id != st.session_state.ultima_imagen_id:
@@ -387,15 +542,12 @@ with st.sidebar:
             with st.spinner("🔍 Analizando imagen..."):
                 img_b64_temp = base64.b64encode(img_file.read()).decode('utf-8')
                 img_file.seek(0)
-                descripcion = describir_imagen_automaticamente(img_b64_temp)
-                st.session_state.descripcion_imagen = descripcion
-
+                st.session_state.descripcion_imagen = describir_imagen_automaticamente(img_b64_temp)
         caption = "✅ Analizada y en memoria" if st.session_state.descripcion_imagen else "⏳ Analizando..."
         st.image(img_file, caption=caption, use_container_width=True)
         if st.session_state.descripcion_imagen:
             with st.expander("👁️ Ver descripción detectada"):
                 st.write(st.session_state.descripcion_imagen)
-
     elif st.session_state.ultima_imagen_id is not None:
         st.session_state.ultima_imagen_id = None
         st.session_state.descripcion_imagen = None
@@ -407,15 +559,39 @@ with st.sidebar:
             chat_text += f"[{autor}]: {m.content}\n\n"
         st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain")
 
+# Inyectamos el tema DESPUÉS de leer el nivel del selectbox
+inyectar_tema(nivel_edu)
+
+# Títulos según nivel
+titulos = {
+    "Primario":    "👩‍🏫 Seño Virtual con Memoria",
+    "Secundario":  "👨‍🏫 Tutor Agéntico con Memoria",
+    "Universidad": "🎓 Profesor Virtual con Memoria",
+}
+st.title(titulos[nivel_edu])
+
 # PDF
 contexto = "General"
 if pdf_file:
     contexto = "".join([p.extract_text() for p in PdfReader(pdf_file).pages])
 
-# Chat
+# Chat — avatar dinámico según nivel
+avatar_map = {
+    "Primario":    "👩‍🏫",
+    "Secundario":  "👨‍💼",
+    "Universidad": "👨‍🔬",
+}
+avatar_asist = avatar_map[nivel_edu]
+
 for m in st.session_state.chat_history:
-    with st.chat_message("assistant" if isinstance(m, AIMessage) else "user"):
-        st.markdown(m.content)
+    if isinstance(m, AIMessage):
+        with st.chat_message("assistant", avatar=avatar_asist):
+            st.markdown(m.content)
+    else:
+        with st.chat_message("user"):
+            st.markdown(m.content)
+
+spinner_msg = TEMAS[nivel_edu]["spinner_msg"]
 
 if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
     new_user_msg = HumanMessage(content=prompt)
@@ -423,20 +599,20 @@ if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    with st.spinner("📝 El profesor está respondiendo..."):
+    with st.spinner(spinner_msg):
         try:
             inputs = {
-                "messages": st.session_state.chat_history,
+                "messages":          st.session_state.chat_history,
                 "contexto_programa": contexto,
-                "descripcion_imagen": st.session_state.descripcion_imagen,
-                "contador_pasos": st.session_state.contador,
-                "nivel_educativo": nivel_edu
+                "descripcion_imagen":st.session_state.descripcion_imagen,
+                "contador_pasos":    st.session_state.contador,
+                "nivel_educativo":   nivel_edu,
             }
-            output = app.invoke(inputs)
+            output     = app.invoke(inputs)
             resp_final = output["messages"][-1]
             st.session_state.contador = output.get("contador_pasos", 0)
             st.session_state.chat_history.append(resp_final)
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
         except Exception as e:
             st.error(f"❌ Error inesperado: {e}\n\nIntentá reiniciar la clase o verificar tu API Key.")
