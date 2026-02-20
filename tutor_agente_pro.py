@@ -238,10 +238,42 @@ def inyectar_tema(nivel: str):
 [data-testid="stSidebar"] .stFileUploader label {{
     color: {t['label_color']} !important;
     font-family: 'Caveat', cursive !important;
-    font-size: 1.1rem !important;
+    font-size: 1.2rem !important;
+    font-weight: 700 !important;
 }}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {{
     color: #ecf0f1 !important;
+}}
+/* ── FILE UPLOADER: botón y zona de arrastre bien visibles ── */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section {{
+    background: rgba(255,255,255,0.18) !important;
+    border: 2px dashed rgba(255,255,255,0.7) !important;
+    border-radius: 10px !important;
+    padding: 10px !important;
+}}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section:hover {{
+    background: rgba(255,255,255,0.28) !important;
+    border-color: #fff !important;
+}}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button {{
+    background: rgba(255,255,255,0.90) !important;
+    color: #1a237e !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    font-size: 0.9rem !important;
+    padding: 6px 14px !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important;
+}}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button:hover {{
+    background: #fff !important;
+    transform: translateY(-1px) !important;
+}}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] span,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] small,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] p {{
+    color: rgba(255,255,255,0.92) !important;
+    font-size: 0.82rem !important;
 }}
 [data-testid="stSidebar"] .stButton button {{
     background: linear-gradient(135deg, #e67e22, #d35400) !important;
@@ -258,43 +290,60 @@ def inyectar_tema(nivel: str):
     transform: translateY(-2px) !important;
     box-shadow: 0 5px 12px rgba(0,0,0,0.4) !important;
 }}
-/* Mensajes del asistente con avatar SVG */
+/* ── MENSAJES ASISTENTE: fondo blanco + renglones encima ── */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {{
-    background: rgba(255,255,255,0.88) !important;
+    background-color: rgba(255,255,255,0.92) !important;
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 27px,
+        {t['linea_asist']} 27px, {t['linea_asist']} 28px
+    ) !important;
+    background-size: 100% 28px !important;
     border-radius: 12px !important;
     border-left: 4px solid {t['borde_asist']} !important;
     padding: 12px 16px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
     font-family: 'Nunito', sans-serif !important;
-    background-image: repeating-linear-gradient(
-        transparent, transparent 27px,
-        {t['linea_asist']} 27px, {t['linea_asist']} 28px
-    ) !important;
-    background-size: 100% 28px !important;
     line-height: 28px !important;
 }}
-/* Mensajes del usuario */
+/* ── MENSAJES USUARIO: fondo blanco + renglones encima ── */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
-    background: rgba(255,255,255,0.80) !important;
-    border-radius: 12px !important;
-    border-left: 4px solid {t['borde_user']} !important;
-    padding: 12px 16px !important;
+    background-color: rgba(255,255,255,0.82) !important;
     background-image: repeating-linear-gradient(
-        transparent, transparent 27px,
+        to bottom,
+        transparent 0px, transparent 27px,
         {t['linea_user']} 27px, {t['linea_user']} 28px
     ) !important;
     background-size: 100% 28px !important;
+    border-radius: 12px !important;
+    border-left: 4px solid {t['borde_user']} !important;
+    padding: 12px 16px !important;
     line-height: 28px !important;
 }}
-/* Avatar del asistente → SVG del nivel */
+/* ── AVATAR: contenedor más grande y visible ── */
 [data-testid="stChatMessageAvatarAssistant"] {{
-    background-image: url("data:image/svg+xml;base64,{av}") !important;
-    background-size: cover !important;
-    background-color: transparent !important;
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
     border-radius: 50% !important;
-    border: 2px solid {t['borde_asist']} !important;
+    border: 3px solid {t['borde_asist']} !important;
+    background: white !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2) !important;
+    font-size: 2rem !important;
 }}
-[data-testid="stChatMessageAvatarAssistant"] > * {{ display: none !important; }}
+[data-testid="stChatMessageAvatarUser"] {{
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    border-radius: 50% !important;
+    border: 3px solid {t['borde_user']} !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15) !important;
+    font-size: 2rem !important;
+}}
 /* Input */
 [data-testid="stChatInput"] {{
     background: rgba(255,255,255,0.9) !important;
@@ -582,6 +631,43 @@ avatar_map = {
     "Universidad": "👨‍🔬",
 }
 avatar_asist = avatar_map[nivel_edu]
+av_b64       = AVATARES[nivel_edu]
+t_actual     = TEMAS[nivel_edu]
+
+nombre_tutor = {
+    "Primario":    "Seño Virtual 👩‍🏫",
+    "Secundario":  "Tutor Virtual 👨‍💼",
+    "Universidad": "Profesor Dr. 👨‍🔬",
+}[nivel_edu]
+
+saludo_tutor = {
+    "Primario":    "¡Hola! Preguntame lo que quieras 🌟",
+    "Secundario":  "Listo para ayudarte con lo que necesites 💡",
+    "Universidad": "Proceda con su consulta académica 📚",
+}[nivel_edu]
+
+# Tarjeta de presentación del avatar grande
+st.markdown(f"""
+<div style="display:flex; align-items:center; gap:14px; margin-bottom:16px; padding:12px 16px;
+     background:rgba(255,255,255,0.75); border-radius:16px;
+     border-left: 5px solid {t_actual['borde_asist']};
+     box-shadow: 0 3px 12px rgba(0,0,0,0.10);">
+  <img src="data:image/svg+xml;base64,{av_b64}"
+       style="width:80px; height:80px; border-radius:50%;
+              border: 3px solid {t_actual['borde_asist']};
+              background:white; box-shadow:0 4px 12px rgba(0,0,0,0.2);
+              flex-shrink:0;" />
+  <div>
+    <div style="font-family:'Caveat',cursive; font-size:1.3rem;
+                color:{t_actual['titulo_color']}; font-weight:700; margin-bottom:2px;">
+      {nombre_tutor}
+    </div>
+    <div style="font-family:'Nunito',sans-serif; font-size:0.88rem; color:#666;">
+      {saludo_tutor}
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 for m in st.session_state.chat_history:
     if isinstance(m, AIMessage):
@@ -616,6 +702,3 @@ if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
                 st.markdown(resp_final.content)
         except Exception as e:
             st.error(f"❌ Error inesperado: {e}\n\nIntentá reiniciar la clase o verificar tu API Key.")
-
-
-
