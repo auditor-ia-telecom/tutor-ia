@@ -402,10 +402,53 @@ def inyectar_tema(nivel: str):
     background: linear-gradient(135deg, #2ecc71, #27ae60) !important;
     transform: translateY(-2px) !important;
 }}
+/* ── SELECTBOX NIVEL: bien visible ── */
 [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {{
-    background: rgba(255,255,255,0.15) !important;
-    border-radius: 8px !important;
-    border: 1px solid rgba(255,255,255,0.3) !important;
+    background: rgba(255,255,255,0.22) !important;
+    border-radius: 10px !important;
+    border: 2px solid rgba(255,255,255,0.7) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+}}
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]:hover {{
+    background: rgba(255,255,255,0.32) !important;
+    border-color: #fff !important;
+}}
+[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] span {{
+    color: #ffffff !important;
+    font-family: 'Nunito', sans-serif !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+}}
+[data-testid="stSidebar"] .stSelectbox svg {{
+    fill: #ffffff !important;
+}}
+/* ── AUDIO INPUT: micrófono resaltado ── */
+[data-testid="stSidebar"] [data-testid="stAudioInput"] {{
+    background: rgba(255,255,255,0.18) !important;
+    border: 2px solid rgba(255,255,255,0.6) !important;
+    border-radius: 12px !important;
+    padding: 8px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25) !important;
+}}
+[data-testid="stSidebar"] [data-testid="stAudioInput"]:hover {{
+    border-color: #fff !important;
+    background: rgba(255,255,255,0.28) !important;
+}}
+[data-testid="stSidebar"] [data-testid="stAudioInput"] button {{
+    background: linear-gradient(135deg, #e53935, #c62828) !important;
+    border-radius: 50% !important;
+    width: 42px !important;
+    height: 42px !important;
+    box-shadow: 0 3px 10px rgba(229,57,53,0.5) !important;
+    border: none !important;
+}}
+[data-testid="stSidebar"] [data-testid="stAudioInput"] button:hover {{
+    background: linear-gradient(135deg, #ff5252, #e53935) !important;
+    transform: scale(1.08) !important;
+    box-shadow: 0 4px 14px rgba(229,57,53,0.7) !important;
+}}
+[data-testid="stSidebar"] [data-testid="stAudioInput"] button svg {{
+    fill: #ffffff !important;
 }}
 </style>
 <div class="pencil-bar">{t['emoji_bar']}</div>
