@@ -210,6 +210,8 @@ defaults = {
     "ultima_respuesta_tts": None,
     "ultima_camara_id": None,
     "camara_b64_pendiente": None,
+    "errores_detectados": [],
+    "temas_dominados": [],
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -608,6 +610,9 @@ class AgentState(TypedDict):
     descripcion_imagen: str
     contador_pasos: int
     nivel_educativo: str
+    errores_detectados: List[dict]   # {"tema": str, "descripcion": str, "veces": int}
+    temas_dominados: List[str]       # temas que el alumno ya entendió bien
+    reforzar_tema: str               # tema a reforzar antes de avanzar
 
 def tutor_node(state: AgentState):
     ultimo_msg = state['messages'][-1].content
@@ -661,19 +666,123 @@ REGLAS ANTI-ERROR (MUY IMPORTANTE):
     )
     return {"messages": [response], "contador_pasos": state.get("contador_pasos", 0) + 1}
 
-def examen_node(state: AgentState):
-    prompt = f"Generá un ejercicio corto y claro para nivel {state['nivel_educativo']} sobre el último tema tratado."
-    response = llm_text.invoke([SystemMessage(content=prompt), HumanMessage(content="¡Examen!")])
-    return {"messages": [AIMessage(content=f"🎓 **DESAFÍO ({state['nivel_educativo']}):** {response.content}")]}
+def evaluador_node(state: AgentState):
+    """Analiza el último mensaje del alumno buscando errores conceptuales."""
+    ultimo_msg = state["messages"][-1].content
+    errores = state.get("errores_detectados") or []
+    temas_dominados = state.get("temas_dominados") or []
 
-def router(state: AgentState):
-    return "examen" if state.get("contador_pasos", 0) >= 6 else END
+    prompt_eval = f"""Sos un evaluador pedagógico experto en nivel {state["nivel_educativo"]}.
+Analizá este mensaje del alumno: "{ultimo_msg}"
+
+Respondé SOLO con un JSON con este formato exacto (sin markdown, sin explicaciones):
+{{
+  "tiene_error": true/false,
+  "tema": "nombre corto del tema o concepto donde hay error",
+  "descripcion_error": "descripción breve del error conceptual detectado",
+  "nivel_comprension": "bajo/medio/alto"
+}}
+
+Si el mensaje es una pregunta sin errores conceptuales, o es saludos/consulta general, poné tiene_error: false.
+Solo marcá error si el alumno demuestra una concepción incorrecta o confusión conceptual clara."""
+
+    try:
+        import json
+        resp = llm_text.invoke([SystemMessage(content=prompt_eval)])
+        texto = resp.content.strip()
+        # Limpiar posibles backticks
+        texto = texto.replace("```json", "").replace("```", "").strip()
+        datos = json.loads(texto)
+
+        if datos.get("tiene_error"):
+            tema_error = datos.get("tema", "concepto")
+            desc_error = datos.get("descripcion_error", "")
+            # Buscamos si ya existía este error
+            encontrado = False
+            for e in errores:
+                if tema_error.lower() in e["tema"].lower():
+                    e["veces"] += 1
+                    e["descripcion"] = desc_error
+                    encontrado = True
+                    break
+            if not encontrado:
+                errores.append({"tema": tema_error, "descripcion": desc_error, "veces": 1})
+            return {
+                "errores_detectados": errores,
+                "temas_dominados": temas_dominados,
+                "reforzar_tema": tema_error if any(e["veces"] >= 2 for e in errores if e["tema"] == tema_error) else ""
+            }
+    except Exception:
+        pass
+
+    return {
+        "errores_detectados": errores,
+        "temas_dominados": temas_dominados,
+        "reforzar_tema": ""
+    }
+
+def reforzador_node(state: AgentState):
+    """Interviene cuando el alumno repite un error 2+ veces para reforzar el concepto."""
+    tema = state.get("reforzar_tema", "")
+    errores = state.get("errores_detectados") or []
+    desc = next((e["descripcion"] for e in errores if e["tema"] == tema), "")
+
+    roles_reforz = {
+        "Primario": "Sos una maestra muy paciente y cariñosa.",
+        "Secundario": "Sos un tutor cercano y motivador.",
+        "Universidad": "Sos un profesor universitario riguroso.",
+    }
+    perfil = roles_reforz.get(state["nivel_educativo"], roles_reforz["Secundario"])
+
+    prompt_reforz = f"""{perfil}
+El alumno cometió el siguiente error por segunda vez: "{desc}" sobre el tema "{tema}".
+Antes de continuar con la clase, explicá este concepto desde cero con un enfoque diferente al anterior.
+Usá un ejemplo nuevo, concreto y claro. Sé empático — no lo retés, ayudalo a entender.
+Respondé en español rioplatense."""
+
+    response = llm_text.invoke([SystemMessage(content=prompt_reforz)])
+    msg = f"📌 **Refuerzo sobre {tema}:**\n\n{response.content}"
+    return {"messages": [AIMessage(content=msg)], "reforzar_tema": ""}
+
+def examen_node(state: AgentState):
+    errores = state.get("errores_detectados") or []
+    resumen_errores = ""
+    if errores:
+        resumen_errores = "Temas donde el alumno tuvo dificultades: " +             ", ".join([f"{e['tema']} ({e['veces']} vez)" for e in errores])
+
+    prompt = f"""Generá un ejercicio corto y claro para nivel {state["nivel_educativo"]} 
+sobre el último tema tratado. {resumen_errores}
+Si hay temas con errores frecuentes, incluí al menos una pregunta sobre esos temas para reforzarlos."""
+    response = llm_text.invoke([SystemMessage(content=prompt), HumanMessage(content="¡Examen!")])
+    return {"messages": [AIMessage(content=f"🎓 **DESAFÍO ({state['nivel_educativo']}):**\n\n{response.content}")]}
+
+def router_principal(state: AgentState):
+    """Decide qué nodo sigue después del tutor."""
+    if state.get("contador_pasos", 0) >= 6:
+        return "examen"
+    return "evaluador"
+
+def router_evaluador(state: AgentState):
+    """Decide si reforzar o terminar después de evaluar."""
+    if state.get("reforzar_tema"):
+        return "reforzador"
+    return END
 
 workflow = StateGraph(AgentState)
 workflow.add_node("tutor", tutor_node)
+workflow.add_node("evaluador", evaluador_node)
+workflow.add_node("reforzador", reforzador_node)
 workflow.add_node("examen", examen_node)
 workflow.set_entry_point("tutor")
-workflow.add_conditional_edges("tutor", router, {"examen": "examen", END: END})
+workflow.add_conditional_edges("tutor", router_principal, {
+    "examen": "examen",
+    "evaluador": "evaluador"
+})
+workflow.add_conditional_edges("evaluador", router_evaluador, {
+    "reforzador": "reforzador",
+    END: END
+})
+workflow.add_edge("reforzador", END)
 workflow.add_edge("examen", END)
 app = workflow.compile()
 
@@ -707,6 +816,8 @@ with st.sidebar:
             st.session_state.contador = 0
             st.session_state.ultima_imagen_id = None
             st.session_state.descripcion_imagen = None
+            st.session_state.errores_detectados = []
+            st.session_state.temas_dominados = []
             st.rerun()
     with col2:
         if st.button("🚪 Salir", use_container_width=True):
@@ -821,11 +932,38 @@ with st.sidebar:
         st.session_state.ultima_imagen_id = None
         st.session_state.descripcion_imagen = None
 
+    # ── PANEL DE PROGRESO Y ERRORES ──
+    errores_sess = st.session_state.get("errores_detectados", [])
+    if errores_sess:
+        st.divider()
+        st.markdown(
+            "<div style='font-family:Caveat,cursive; font-size:1.1rem; font-weight:700; color:#f0e68c;'>"
+            "📊 Progreso de la clase</div>",
+            unsafe_allow_html=True
+        )
+        with st.expander(f"⚠️ Temas a reforzar ({len(errores_sess)})", expanded=False):
+            for e in errores_sess:
+                color = "#e74c3c" if e["veces"] >= 2 else "#f39c12"
+                icono = "🔴" if e["veces"] >= 2 else "🟡"
+                st.markdown(
+                    f"<div style='background:rgba(255,255,255,0.1); border-left:3px solid {color};"
+                    f"border-radius:6px; padding:6px 10px; margin-bottom:6px;'>"
+                    f"<span style='color:{color}; font-weight:700;'>{icono} {e['tema']}</span><br>"
+                    f"<span style='font-size:0.72rem; color:rgba(255,255,255,0.7);'>{e['descripcion']}</span><br>"
+                    f"<span style='font-size:0.68rem; color:rgba(255,255,255,0.5);'>Repetido {e['veces']} vez/veces</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
     if st.session_state.chat_history:
         chat_text = "--- RESUMEN DE CLASE ---\n\n"
         for m in st.session_state.chat_history:
             autor = "ALUMNO" if isinstance(m, HumanMessage) else "PROFESOR"
             chat_text += f"[{autor}]: {m.content}\n\n"
+        if errores_sess:
+            chat_text += "\n--- ERRORES DETECTADOS EN CLASE ---\n"
+            for e in errores_sess:
+                chat_text += f"- {e['tema']} (repetido {e['veces']} vez): {e['descripcion']}\n"
         st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain")
 
 # Inyectamos el tema DESPUÉS de leer el nivel del selectbox
@@ -933,15 +1071,20 @@ if prompt:
     with st.spinner(spinner_msg):
         try:
             inputs = {
-                "messages":          st.session_state.chat_history,
-                "contexto_programa": contexto,
-                "descripcion_imagen":st.session_state.descripcion_imagen,
-                "contador_pasos":    st.session_state.contador,
-                "nivel_educativo":   nivel_edu,
+                "messages":           st.session_state.chat_history,
+                "contexto_programa":  contexto,
+                "descripcion_imagen": st.session_state.descripcion_imagen,
+                "contador_pasos":     st.session_state.contador,
+                "nivel_educativo":    nivel_edu,
+                "errores_detectados": st.session_state.get("errores_detectados", []),
+                "temas_dominados":    st.session_state.get("temas_dominados", []),
+                "reforzar_tema":      "",
             }
             output     = app.invoke(inputs)
             resp_final = output["messages"][-1]
             st.session_state.contador = output.get("contador_pasos", 0)
+            st.session_state.errores_detectados = output.get("errores_detectados", [])
+            st.session_state.temas_dominados = output.get("temas_dominados", [])
             st.session_state.chat_history.append(resp_final)
             st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
