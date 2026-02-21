@@ -573,7 +573,7 @@ def texto_a_voz(texto: str):
     try:
         response = client.audio.speech.create(
             model="canopylabs/orpheus-v1-english",
-            voice="dan",      # voz masculina clara
+            voice="daniel",   # voz masculina clara
             input=texto_corto,
             response_format="wav",
         )
