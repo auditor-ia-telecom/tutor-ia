@@ -1112,10 +1112,13 @@ if prompt:
             st.session_state.errores_detectados = output.get("errores_detectados", [])
             st.session_state.temas_dominados = output.get("temas_dominados", [])
             st.session_state.chat_history.append(resp_final)
-            # DEBUG temporal — mostrá qué evaluó el LLM
-            if st.session_state.get("_debug_evaluador"):
-                with st.expander("🔍 DEBUG evaluador (borrar luego)", expanded=True):
-                    st.code(st.session_state["_debug_evaluador"])
+            # ── DEBUG COMPLETO ──
+            with st.expander("🔍 DEBUG (borrar luego)", expanded=True):
+                st.write("**errores_detectados en output:**", output.get("errores_detectados"))
+                st.write("**errores en session_state:**", st.session_state.errores_detectados)
+                st.write("**contador_pasos:**", output.get("contador_pasos"))
+                st.write("**_debug_evaluador:**", st.session_state.get("_debug_evaluador", "NO SE EJECUTÓ"))
+                st.write("**keys en output:**", list(output.keys()))
             st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
