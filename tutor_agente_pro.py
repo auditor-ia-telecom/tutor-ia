@@ -681,16 +681,24 @@ def evaluador_node(state: AgentState):
     prompt_eval = f"""Sos un evaluador pedagógico experto en nivel {state["nivel_educativo"]}.
 Analizá este mensaje del alumno: "{ultimo_msg}"
 
-Respondé SOLO con un JSON con este formato exacto (sin markdown, sin explicaciones):
+Tu tarea es detectar si el alumno afirma, asume o usa algo conceptualmente incorrecto, en CUALQUIER materia.
+Ejemplos de errores a detectar:
+- Matemática: fórmula incorrecta, operación mal aplicada
+- Inglés: uso incorrecto de tiempo verbal, error gramatical ("I goed", "she don't"), traducción incorrecta
+- Historia: fecha, personaje o evento mal atribuido
+- Ciencias: definición incorrecta, ley mal enunciada
+- Cualquier otra materia: concepto mal entendido o afirmado incorrectamente
+
+Marcá tiene_error: true si el alumno escribe, usa o afirma algo incorrecto, aunque sea dentro de una pregunta.
+Marcá tiene_error: false si el mensaje es solo una consulta sin afirmaciones, un saludo, o está todo correcto.
+
+Respondé SOLO con este JSON exacto (sin markdown, sin texto extra):
 {{
   "tiene_error": true/false,
-  "tema": "nombre corto del tema o concepto donde hay error",
-  "descripcion_error": "descripción breve del error conceptual detectado",
+  "tema": "nombre corto del tema o concepto con error",
+  "descripcion_error": "qué dijo mal el alumno y por qué es incorrecto",
   "nivel_comprension": "bajo/medio/alto"
-}}
-
-Si el mensaje es una pregunta sin errores conceptuales, o es saludos/consulta general, poné tiene_error: false.
-Solo marcá error si el alumno demuestra una concepción incorrecta o confusión conceptual clara."""
+}}"""
 
     try:
         import json
@@ -928,12 +936,6 @@ with st.sidebar:
     pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
 
-    # ── DEBUG EVALUADOR (borrarlo una vez que funcione) ──
-    debug_eval = st.session_state.get("_debug_evaluador")
-    if debug_eval:
-        st.markdown("**🔍 DEBUG EVALUADOR:**")
-        st.code(debug_eval)
-
     if img_file:
         imagen_id = f"{img_file.name}_{img_file.size}"
         if imagen_id != st.session_state.ultima_imagen_id:
@@ -1108,6 +1110,10 @@ if prompt:
             st.session_state.errores_detectados = output.get("errores_detectados", [])
             st.session_state.temas_dominados = output.get("temas_dominados", [])
             st.session_state.chat_history.append(resp_final)
+            # DEBUG temporal — mostrá qué evaluó el LLM
+            if st.session_state.get("_debug_evaluador"):
+                with st.expander("🔍 DEBUG evaluador (borrar luego)", expanded=True):
+                    st.code(st.session_state["_debug_evaluador"])
             st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
