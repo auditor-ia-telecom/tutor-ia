@@ -207,6 +207,8 @@ defaults = {
     "dias_restantes": 0,
     "ultimo_audio_id": None,
     "prompt_desde_audio": None,
+    "ultima_respuesta_tts": None,
+    "ultima_camara_id": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -563,6 +565,22 @@ def transcribir_audio(audio_bytes: bytes) -> str:
     except Exception as e:
         return f"ERROR_AUDIO: {e}"
 
+def texto_a_voz(texto: str) -> bytes | None:
+    """Convierte texto a audio usando Groq TTS."""
+    try:
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        # Limitamos a 500 chars para no gastar demasiado en respuestas largas
+        texto_corto = texto[:500] + ("..." if len(texto) > 500 else "")
+        response = client.audio.speech.create(
+            model="playai-tts",
+            voice="Celeste-PlayAI",   # voz en español
+            input=texto_corto,
+            response_format="wav",
+        )
+        return response.read()
+    except Exception as e:
+        return None
+
 def describir_imagen_automaticamente(img_b64: str) -> str:
     llm_vision = get_vision_llm()
     if llm_vision is None:
@@ -735,6 +753,50 @@ with st.sidebar:
                 st.session_state.prompt_desde_audio = texto_transcripto
                 st.success(f'✅ "{texto_transcripto}"')
     st.divider()
+
+    # ── CÁMARA ──
+    st.markdown(
+        "<div style='font-family:Caveat,cursive; font-size:1.15rem; font-weight:700; color:#f0e68c;'>"
+        "📷 Foto con cámara</div>",
+        unsafe_allow_html=True
+    )
+    st.caption("Sacá una foto de tu ejercicio directamente")
+    camara_foto = st.camera_input(" ", key="camara_ejercicio", label_visibility="collapsed")
+    if camara_foto is not None:
+        cam_id = str(len(camara_foto.getvalue()))
+        if cam_id != st.session_state.get("ultima_camara_id"):
+            st.session_state.ultima_camara_id = cam_id
+            with st.spinner("🔍 Analizando foto..."):
+                cam_b64 = base64.b64encode(camara_foto.getvalue()).decode("utf-8")
+                descripcion_cam = describir_imagen_automaticamente(cam_b64)
+                st.session_state.descripcion_imagen = descripcion_cam
+                st.session_state.ultima_imagen_id = cam_id
+            st.success("✅ Foto analizada y en memoria")
+            with st.expander("👁️ Ver descripción"):
+                st.write(descripcion_cam)
+
+    st.divider()
+
+    # ── TTS: ESCUCHAR ÚLTIMA RESPUESTA ──
+    st.markdown(
+        "<div style='font-family:Caveat,cursive; font-size:1.15rem; font-weight:700; color:#f0e68c;'>"
+        "🔊 Escuchar respuesta</div>",
+        unsafe_allow_html=True
+    )
+    ultima_resp = st.session_state.get("ultima_respuesta_tts")
+    if ultima_resp:
+        st.caption("Presioná para escuchar la última respuesta del tutor")
+        if st.button("▶️ Reproducir", use_container_width=True, key="btn_tts"):
+            with st.spinner("🔊 Generando audio..."):
+                audio_bytes_tts = texto_a_voz(ultima_resp)
+            if audio_bytes_tts:
+                st.audio(audio_bytes_tts, format="audio/wav", autoplay=True)
+            else:
+                st.warning("No se pudo generar el audio.")
+    else:
+        st.caption("Esperá la primera respuesta del tutor")
+
+    st.divider()
     pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
 
@@ -873,6 +935,7 @@ if prompt:
             resp_final = output["messages"][-1]
             st.session_state.contador = output.get("contador_pasos", 0)
             st.session_state.chat_history.append(resp_final)
+            st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
         except Exception as e:
