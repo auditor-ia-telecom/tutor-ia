@@ -694,10 +694,13 @@ Solo marcá error si el alumno demuestra una concepción incorrecta o confusión
 
     try:
         import json
+        import streamlit as _st
         resp = llm_text.invoke([SystemMessage(content=prompt_eval)])
         texto = resp.content.strip()
         # Limpiar posibles backticks
         texto = texto.replace("```json", "").replace("```", "").strip()
+        # DEBUG: guardar respuesta cruda para ver qué devuelve el LLM
+        _st.session_state["_debug_evaluador"] = f"MSG ANALIZADO: {ultimo_msg[:80]}...\n\nRESPUESTA LLM:\n{texto}"
         datos = json.loads(texto)
 
         if datos.get("tiene_error"):
@@ -926,8 +929,10 @@ with st.sidebar:
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
 
     # ── DEBUG EVALUADOR (borrarlo una vez que funcione) ──
-    if st.session_state.get("_debug_evaluador"):
-        st.error(st.session_state["_debug_evaluador"])
+    debug_eval = st.session_state.get("_debug_evaluador")
+    if debug_eval:
+        st.markdown("**🔍 DEBUG EVALUADOR:**")
+        st.code(debug_eval)
 
     if img_file:
         imagen_id = f"{img_file.name}_{img_file.size}"
