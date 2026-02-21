@@ -671,32 +671,6 @@ with st.sidebar:
 
     st.divider()
 
-    # ── AUDIO EN SIDEBAR ──
-    st.markdown(
-        "<div style='font-family:Caveat,cursive; font-size:1.1rem; font-weight:700; "
-        f"color:{TEMAS[nivel_edu]["label_color"]};'>🎙️ Consulta por voz:</div>",
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        "<div style='font-size:0.72rem; color:rgba(255,255,255,0.55); margin-top:-6px; margin-bottom:6px;'>"
-        "Presioná para grabar · presioná de nuevo para detener · luego enviá</div>",
-        unsafe_allow_html=True
-    )
-    audio_input = st.audio_input(" ", key="audio_consulta", label_visibility="collapsed")
-
-    if audio_input is not None:
-        audio_bytes = audio_input.getvalue()
-        audio_id = str(len(audio_bytes))
-        if audio_id != st.session_state.get("ultimo_audio_id"):
-            st.session_state.ultimo_audio_id = audio_id
-            with st.spinner("🎙️ Transcribiendo..."):
-                texto_transcripto = transcribir_audio(audio_bytes)
-            if texto_transcripto.startswith("ERROR_AUDIO:"):
-                st.warning("No se pudo transcribir. Escribí tu consulta.")
-            else:
-                st.session_state.prompt_desde_audio = texto_transcripto
-                st.success(f'✅ "{texto_transcripto}"')
-
     st.divider()
     pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
@@ -807,12 +781,37 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-prompt_audio = st.session_state.get("prompt_desde_audio")
-if prompt_audio:
-    st.session_state.prompt_desde_audio = None
+# ── BARRA INFERIOR: MICRÓFONO + TEXTO ──
+col_mic, col_chat = st.columns([1, 8])
 
-prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
-prompt = prompt_audio or prompt_texto
+with col_mic:
+    st.markdown(
+        "<div style='padding-top:6px; text-align:center; font-size:0.7rem; "
+        f"color:{t_actual["titulo_color"]}; opacity:0.6; font-weight:700;'>🎙️ VOZ</div>",
+        unsafe_allow_html=True
+    )
+    audio_input = st.audio_input(" ", key="audio_consulta", label_visibility="collapsed")
+
+    if audio_input is not None:
+        audio_bytes = audio_input.getvalue()
+        audio_id = str(len(audio_bytes))
+        if audio_id != st.session_state.get("ultimo_audio_id"):
+            st.session_state.ultimo_audio_id = audio_id
+            with st.spinner("🎙️ Transcribiendo..."):
+                texto_transcripto = transcribir_audio(audio_bytes)
+            if texto_transcripto.startswith("ERROR_AUDIO:"):
+                st.warning("No se pudo transcribir.")
+            else:
+                st.session_state.prompt_desde_audio = texto_transcripto
+
+with col_chat:
+    prompt_audio = st.session_state.get("prompt_desde_audio")
+    if prompt_audio:
+        st.session_state.prompt_desde_audio = None
+        st.info(f'🎙️ *"{prompt_audio}"* — enviando...')
+
+    prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
+    prompt = prompt_audio or prompt_texto
 
 if prompt:
     new_user_msg = HumanMessage(content=prompt)
