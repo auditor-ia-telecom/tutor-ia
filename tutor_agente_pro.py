@@ -672,6 +672,26 @@ with st.sidebar:
     st.divider()
 
     st.divider()
+    st.markdown(
+        "<div style='font-family:Caveat,cursive; font-size:1.15rem; font-weight:700; color:#f0e68c;'>"
+        "🎙️ Consulta por voz</div>",
+        unsafe_allow_html=True
+    )
+    st.caption("1️⃣ Grabá  ·  2️⃣ Detené  ·  3️⃣ Se envía solo")
+    audio_input = st.audio_input(" ", key="audio_consulta", label_visibility="collapsed")
+    if audio_input is not None:
+        audio_bytes = audio_input.getvalue()
+        audio_id = str(len(audio_bytes))
+        if audio_id != st.session_state.get("ultimo_audio_id"):
+            st.session_state.ultimo_audio_id = audio_id
+            with st.spinner("🎙️ Transcribiendo..."):
+                texto_transcripto = transcribir_audio(audio_bytes)
+            if texto_transcripto.startswith("ERROR_AUDIO:"):
+                st.warning("No se pudo transcribir. Escribí tu consulta.")
+            else:
+                st.session_state.prompt_desde_audio = texto_transcripto
+                st.success(f'✅ "{texto_transcripto}"')
+    st.divider()
     pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
 
@@ -781,31 +801,12 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── AUDIO: widget oculto visualmente, procesamos en sidebar flotante ──
-# Mostramos aviso si hay audio transcripto listo
 prompt_audio = st.session_state.get("prompt_desde_audio")
 if prompt_audio:
     st.session_state.prompt_desde_audio = None
 
 prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
 prompt = prompt_audio or prompt_texto
-
-# Widget de audio en un expander pegado al fondo
-with st.expander("🎙️ Consulta por voz", expanded=False):
-    st.caption("Presioná el micrófono para grabar · presioná de nuevo para detener")
-    audio_input = st.audio_input(" ", key="audio_consulta", label_visibility="collapsed")
-    if audio_input is not None:
-        audio_bytes = audio_input.getvalue()
-        audio_id = str(len(audio_bytes))
-        if audio_id != st.session_state.get("ultimo_audio_id"):
-            st.session_state.ultimo_audio_id = audio_id
-            with st.spinner("🎙️ Transcribiendo..."):
-                texto_transcripto = transcribir_audio(audio_bytes)
-            if texto_transcripto.startswith("ERROR_AUDIO:"):
-                st.warning("No se pudo transcribir. Escribí tu consulta.")
-            else:
-                st.session_state.prompt_desde_audio = texto_transcripto
-                st.success(f'✅ Escuché: "{texto_transcripto}" — ahora escribilo o envialo desde el campo de texto')
 
 if prompt:
     new_user_msg = HumanMessage(content=prompt)
