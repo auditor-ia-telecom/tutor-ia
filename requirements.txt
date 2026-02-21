@@ -4,9 +4,4 @@ langchain-core
 langgraph
 pypdf
 pillow
-
-
-
-
-
-
+groq
