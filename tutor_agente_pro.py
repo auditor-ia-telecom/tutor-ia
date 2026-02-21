@@ -209,6 +209,7 @@ defaults = {
     "prompt_desde_audio": None,
     "ultima_respuesta_tts": None,
     "ultima_camara_id": None,
+    "camara_b64_pendiente": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -767,14 +768,12 @@ with st.sidebar:
             cam_id = str(len(camara_foto.getvalue()))
             if cam_id != st.session_state.get("ultima_camara_id"):
                 st.session_state.ultima_camara_id = cam_id
-                with st.spinner("🔍 Analizando foto..."):
-                    cam_b64 = base64.b64encode(camara_foto.getvalue()).decode("utf-8")
-                    descripcion_cam = describir_imagen_automaticamente(cam_b64)
-                    st.session_state.descripcion_imagen = descripcion_cam
-                    st.session_state.ultima_imagen_id = cam_id
-                st.success("✅ Foto analizada — podés desactivar la cámara")
-                with st.expander("👁️ Ver descripción"):
-                    st.write(descripcion_cam)
+                # Guardamos la foto pero NO analizamos todavía
+                cam_b64 = base64.b64encode(camara_foto.getvalue()).decode("utf-8")
+                st.session_state.camara_b64_pendiente = cam_b64
+                st.session_state.descripcion_imagen = None
+                st.session_state.ultima_imagen_id = cam_id
+            st.success("✅ Foto lista — hacé tu consulta y la analizaré")
     else:
         if st.session_state.get("ultima_camara_id"):
             st.caption("📷 Foto en memoria · activá para cambiarla")
@@ -916,6 +915,13 @@ if prompt_audio:
 
 prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
 prompt = prompt_audio or prompt_texto
+
+# Si hay foto de cámara pendiente de analizar, la analizamos ahora
+if prompt and st.session_state.get("camara_b64_pendiente"):
+    with st.spinner("🔍 Analizando tu foto..."):
+        descripcion_cam = describir_imagen_automaticamente(st.session_state.camara_b64_pendiente)
+        st.session_state.descripcion_imagen = descripcion_cam
+        st.session_state.camara_b64_pendiente = None
 
 if prompt:
     new_user_msg = HumanMessage(content=prompt)
