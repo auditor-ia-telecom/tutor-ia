@@ -712,8 +712,10 @@ Solo marcá error si el alumno demuestra una concepción incorrecta o confusión
                 "temas_dominados": temas_dominados,
                 "reforzar_tema": tema_error if any(e["veces"] >= 2 for e in errores if e["tema"] == tema_error) else ""
             }
-    except Exception:
-        pass
+    except Exception as ex_eval:
+        # Guardamos el error en session_state para verlo en el sidebar
+        import streamlit as _st
+        _st.session_state["_debug_evaluador"] = f"❌ Error en evaluador: {ex_eval}\n\nRespuesta LLM: {resp.content if 'resp' in dir() else 'sin respuesta'}"
 
     return {
         "errores_detectados": errores,
@@ -917,6 +919,10 @@ with st.sidebar:
     pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
 
+    # ── DEBUG EVALUADOR (borrarlo una vez que funcione) ──
+    if st.session_state.get("_debug_evaluador"):
+        st.error(st.session_state["_debug_evaluador"])
+
     if img_file:
         imagen_id = f"{img_file.name}_{img_file.size}"
         if imagen_id != st.session_state.ultima_imagen_id:
@@ -937,14 +943,14 @@ with st.sidebar:
 
     # ── PANEL DE PROGRESO Y ERRORES ──
     errores_sess = st.session_state.get("errores_detectados", [])
+    st.divider()
+    st.markdown(
+        "<div style='font-family:Caveat,cursive; font-size:1.1rem; font-weight:700; color:#f0e68c;'>"
+        "📊 Progreso de la clase</div>",
+        unsafe_allow_html=True
+    )
     if errores_sess:
-        st.divider()
-        st.markdown(
-            "<div style='font-family:Caveat,cursive; font-size:1.1rem; font-weight:700; color:#f0e68c;'>"
-            "📊 Progreso de la clase</div>",
-            unsafe_allow_html=True
-        )
-        with st.expander(f"⚠️ Temas a reforzar ({len(errores_sess)})", expanded=False):
+        with st.expander(f"⚠️ Temas a reforzar ({len(errores_sess)})", expanded=True):
             for e in errores_sess:
                 color = "#e74c3c" if e["veces"] >= 2 else "#f39c12"
                 icono = "🔴" if e["veces"] >= 2 else "🟡"
@@ -957,6 +963,8 @@ with st.sidebar:
                     f"</div>",
                     unsafe_allow_html=True
                 )
+    else:
+        st.caption("✅ Sin errores detectados aún")
 
     if st.session_state.chat_history:
         chat_text = "--- RESUMEN DE CLASE ---\n\n"
