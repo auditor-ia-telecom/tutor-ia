@@ -531,7 +531,8 @@ if not st.session_state.autenticado:
 # ─────────────────────────────────────────────
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-MODEL_TEXT = "llama-3.3-70b-versatile"
+MODEL_TEXT  = "llama-3.3-70b-versatile"   # modelo principal (tutor)
+MODEL_EVAL  = "llama-3.1-8b-instant"        # modelo liviano para evaluador (ahorra rate limit)
 VISION_MODELS = [
     "meta-llama/llama-4-scout-17b-16e-instruct",
     "meta-llama/llama-4-maverick-17b-128e-instruct",
@@ -705,7 +706,8 @@ Respondé SOLO con este JSON exacto (sin markdown, sin texto extra):
     try:
         import json
         import streamlit as _st
-        resp = llm_text.invoke([SystemMessage(content=prompt_eval)])
+        llm_eval = ChatGroq(model=MODEL_EVAL, temperature=0)
+        resp = llm_eval.invoke([SystemMessage(content=prompt_eval)])
         texto = resp.content.strip()
         # Limpiar posibles backticks
         texto = texto.replace("```json", "").replace("```", "").strip()
