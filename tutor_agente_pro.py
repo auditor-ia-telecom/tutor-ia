@@ -10,6 +10,8 @@ if sys.stdout.encoding != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+from typing import Annotated
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from groq import Groq
@@ -605,7 +607,7 @@ def describir_imagen_automaticamente(img_b64: str) -> str:
 # AGENTE LANGGRAPH
 # ─────────────────────────────────────────────
 class AgentState(TypedDict):
-    messages: List[BaseMessage]
+    messages: Annotated[List[BaseMessage], add_messages]
     contexto_programa: str
     descripcion_imagen: str
     contador_pasos: int
