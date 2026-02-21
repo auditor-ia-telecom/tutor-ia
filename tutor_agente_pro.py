@@ -668,7 +668,13 @@ REGLAS ANTI-ERROR (MUY IMPORTANTE):
 
 def evaluador_node(state: AgentState):
     """Analiza el último mensaje del alumno buscando errores conceptuales."""
-    ultimo_msg = state["messages"][-1].content
+    # Buscamos el último HumanMessage — el tutor ya agregó su respuesta al final
+    ultimo_msg = next(
+        (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
+        ""
+    )
+    if not ultimo_msg:
+        return {"errores_detectados": state.get("errores_detectados") or [], "temas_dominados": state.get("temas_dominados") or [], "reforzar_tema": ""}
     errores = state.get("errores_detectados") or []
     temas_dominados = state.get("temas_dominados") or []
 
