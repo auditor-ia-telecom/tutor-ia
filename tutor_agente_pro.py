@@ -781,17 +781,19 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── BARRA INFERIOR: MICRÓFONO + TEXTO ──
-col_mic, col_chat = st.columns([1, 8])
+# ── AUDIO: widget oculto visualmente, procesamos en sidebar flotante ──
+# Mostramos aviso si hay audio transcripto listo
+prompt_audio = st.session_state.get("prompt_desde_audio")
+if prompt_audio:
+    st.session_state.prompt_desde_audio = None
 
-with col_mic:
-    st.markdown(
-        "<div style='padding-top:6px; text-align:center; font-size:0.7rem; "
-        f"color:{t_actual["titulo_color"]}; opacity:0.6; font-weight:700;'>🎙️ VOZ</div>",
-        unsafe_allow_html=True
-    )
+prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
+prompt = prompt_audio or prompt_texto
+
+# Widget de audio en un expander pegado al fondo
+with st.expander("🎙️ Consulta por voz", expanded=False):
+    st.caption("Presioná el micrófono para grabar · presioná de nuevo para detener")
     audio_input = st.audio_input(" ", key="audio_consulta", label_visibility="collapsed")
-
     if audio_input is not None:
         audio_bytes = audio_input.getvalue()
         audio_id = str(len(audio_bytes))
@@ -800,18 +802,10 @@ with col_mic:
             with st.spinner("🎙️ Transcribiendo..."):
                 texto_transcripto = transcribir_audio(audio_bytes)
             if texto_transcripto.startswith("ERROR_AUDIO:"):
-                st.warning("No se pudo transcribir.")
+                st.warning("No se pudo transcribir. Escribí tu consulta.")
             else:
                 st.session_state.prompt_desde_audio = texto_transcripto
-
-with col_chat:
-    prompt_audio = st.session_state.get("prompt_desde_audio")
-    if prompt_audio:
-        st.session_state.prompt_desde_audio = None
-        st.info(f'🎙️ *"{prompt_audio}"* — enviando...')
-
-    prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
-    prompt = prompt_audio or prompt_texto
+                st.success(f'✅ Escuché: "{texto_transcripto}" — ahora escribilo o envialo desde el campo de texto')
 
 if prompt:
     new_user_msg = HumanMessage(content=prompt)
