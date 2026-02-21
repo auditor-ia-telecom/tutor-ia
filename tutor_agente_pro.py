@@ -566,28 +566,19 @@ def transcribir_audio(audio_bytes: bytes) -> str:
         return f"ERROR_AUDIO: {e}"
 
 def texto_a_voz(texto: str):
-    """Convierte texto a audio usando Groq TTS."""
-    # Modelos TTS disponibles en Groq (en orden de preferencia)
-    modelos_tts = [
-        ("playai-tts", "Celeste-PlayAI"),
-        ("playai-tts-arabic", "Celeste-PlayAI"),
-    ]
+    """Convierte texto a audio usando Groq TTS - Orpheus (modelo actual 2025)."""
     texto_corto = texto[:800] + ("..." if len(texto) > 800 else "")
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-    ultimo_error = ""
-    for modelo, voz in modelos_tts:
-        try:
-            response = client.audio.speech.create(
-                model=modelo,
-                voice=voz,
-                input=texto_corto,
-                response_format="wav",
-            )
-            return response.read(), None
-        except Exception as e:
-            ultimo_error = str(e)
-            continue
-    return None, ultimo_error
+    try:
+        response = client.audio.speech.create(
+            model="canopylabs/orpheus-v1-english",
+            voice="dan",      # voz masculina clara
+            input=texto_corto,
+            response_format="wav",
+        )
+        return response.read(), None
+    except Exception as e:
+        return None, str(e)
 
 def describir_imagen_automaticamente(img_b64: str) -> str:
     llm_vision = get_vision_llm()
@@ -770,8 +761,8 @@ with st.sidebar:
     )
     activar_camara = st.toggle("📸 Activar cámara", value=False, key="toggle_camara")
     if activar_camara:
-        st.caption("Encuadrá el ejercicio y presioná **Tomar foto**")
-        camara_foto = st.camera_input("Tomar foto", key="camara_ejercicio", label_visibility="visible")
+        st.caption("Encuadrá el ejercicio y presioná el botón de abajo ↓")
+        camara_foto = st.camera_input("📸 Tomar foto", key="camara_ejercicio")
         if camara_foto is not None:
             cam_id = str(len(camara_foto.getvalue()))
             if cam_id != st.session_state.get("ultima_camara_id"):
