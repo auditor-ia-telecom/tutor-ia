@@ -12,6 +12,7 @@ if sys.stdout.encoding != 'utf-8':
 from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
+from groq import Groq
 
 # ─────────────────────────────────────────────
 # AVATARES SVG inline (base64 para usar en CSS)
@@ -204,6 +205,8 @@ defaults = {
     "nombre_alumno": "",
     "token_vence": "",
     "dias_restantes": 0,
+    "ultimo_audio_id": None,
+    "prompt_desde_audio": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -498,6 +501,25 @@ def get_vision_llm():
             continue
     return None
 
+def transcribir_audio(audio_bytes: bytes) -> str:
+    """Transcribe audio usando Whisper de Groq."""
+    try:
+        import tempfile
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+        with open(tmp_path, "rb") as f:
+            transcripcion = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=("audio.wav", f, "audio/wav"),
+                language="es",
+            )
+        os.unlink(tmp_path)
+        return transcripcion.text.strip()
+    except Exception as e:
+        return f"ERROR_AUDIO: {e}"
+
 def describir_imagen_automaticamente(img_b64: str) -> str:
     llm_vision = get_vision_llm()
     if llm_vision is None:
@@ -757,11 +779,38 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-if prompt := st.chat_input("✏️ Escribí tu consulta acá..."):
+# ── SECCIÓN DE AUDIO ──
+st.markdown("**🎙️ Grabá tu consulta en audio** *(opcional)*", help="Grabá y el tutor te responde igual que con texto")
+audio_input = st.audio_input(" ", key="audio_consulta", label_visibility="collapsed")
+
+if audio_input is not None:
+    audio_bytes = audio_input.getvalue()
+    audio_id = str(len(audio_bytes))
+    if audio_id != st.session_state.get("ultimo_audio_id"):
+        st.session_state.ultimo_audio_id = audio_id
+        with st.spinner("🎙️ Transcribiendo tu audio..."):
+            texto_transcripto = transcribir_audio(audio_bytes)
+        if texto_transcripto.startswith("ERROR_AUDIO:"):
+            st.warning("No se pudo transcribir el audio. Escribí tu consulta en el campo de texto.")
+        else:
+            st.session_state.prompt_desde_audio = texto_transcripto
+            st.info(f'🎙️ Escuché: *"{texto_transcripto}"*')
+
+prompt_audio = st.session_state.get("prompt_desde_audio")
+if prompt_audio:
+    st.session_state.prompt_desde_audio = None
+
+prompt_texto = st.chat_input("✏️ O escribí tu consulta acá...")
+prompt = prompt_audio or prompt_texto
+
+if prompt:
     new_user_msg = HumanMessage(content=prompt)
     st.session_state.chat_history.append(new_user_msg)
     with st.chat_message("user"):
-        st.markdown(prompt)
+        if prompt_audio:
+            st.markdown(f"🎙️ _{prompt}_")
+        else:
+            st.markdown(prompt)
 
     with st.spinner(spinner_msg):
         try:
