@@ -565,21 +565,29 @@ def transcribir_audio(audio_bytes: bytes) -> str:
     except Exception as e:
         return f"ERROR_AUDIO: {e}"
 
-def texto_a_voz(texto: str) -> bytes | None:
+def texto_a_voz(texto: str):
     """Convierte texto a audio usando Groq TTS."""
-    try:
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        # Limitamos a 500 chars para no gastar demasiado en respuestas largas
-        texto_corto = texto[:500] + ("..." if len(texto) > 500 else "")
-        response = client.audio.speech.create(
-            model="playai-tts",
-            voice="Celeste-PlayAI",   # voz en español
-            input=texto_corto,
-            response_format="wav",
-        )
-        return response.read()
-    except Exception as e:
-        return None
+    # Modelos TTS disponibles en Groq (en orden de preferencia)
+    modelos_tts = [
+        ("playai-tts", "Celeste-PlayAI"),
+        ("playai-tts-arabic", "Celeste-PlayAI"),
+    ]
+    texto_corto = texto[:800] + ("..." if len(texto) > 800 else "")
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    ultimo_error = ""
+    for modelo, voz in modelos_tts:
+        try:
+            response = client.audio.speech.create(
+                model=modelo,
+                voice=voz,
+                input=texto_corto,
+                response_format="wav",
+            )
+            return response.read(), None
+        except Exception as e:
+            ultimo_error = str(e)
+            continue
+    return None, ultimo_error
 
 def describir_imagen_automaticamente(img_b64: str) -> str:
     llm_vision = get_vision_llm()
@@ -760,20 +768,25 @@ with st.sidebar:
         "📷 Foto con cámara</div>",
         unsafe_allow_html=True
     )
-    st.caption("Sacá una foto de tu ejercicio directamente")
-    camara_foto = st.camera_input(" ", key="camara_ejercicio", label_visibility="collapsed")
-    if camara_foto is not None:
-        cam_id = str(len(camara_foto.getvalue()))
-        if cam_id != st.session_state.get("ultima_camara_id"):
-            st.session_state.ultima_camara_id = cam_id
-            with st.spinner("🔍 Analizando foto..."):
-                cam_b64 = base64.b64encode(camara_foto.getvalue()).decode("utf-8")
-                descripcion_cam = describir_imagen_automaticamente(cam_b64)
-                st.session_state.descripcion_imagen = descripcion_cam
-                st.session_state.ultima_imagen_id = cam_id
-            st.success("✅ Foto analizada y en memoria")
-            with st.expander("👁️ Ver descripción"):
-                st.write(descripcion_cam)
+    activar_camara = st.toggle("📸 Activar cámara", value=False, key="toggle_camara")
+    if activar_camara:
+        st.caption("Encuadrá el ejercicio y presioná **Tomar foto**")
+        camara_foto = st.camera_input("Tomar foto", key="camara_ejercicio", label_visibility="visible")
+        if camara_foto is not None:
+            cam_id = str(len(camara_foto.getvalue()))
+            if cam_id != st.session_state.get("ultima_camara_id"):
+                st.session_state.ultima_camara_id = cam_id
+                with st.spinner("🔍 Analizando foto..."):
+                    cam_b64 = base64.b64encode(camara_foto.getvalue()).decode("utf-8")
+                    descripcion_cam = describir_imagen_automaticamente(cam_b64)
+                    st.session_state.descripcion_imagen = descripcion_cam
+                    st.session_state.ultima_imagen_id = cam_id
+                st.success("✅ Foto analizada — podés desactivar la cámara")
+                with st.expander("👁️ Ver descripción"):
+                    st.write(descripcion_cam)
+    else:
+        if st.session_state.get("ultima_camara_id"):
+            st.caption("📷 Foto en memoria · activá para cambiarla")
 
     st.divider()
 
@@ -788,11 +801,11 @@ with st.sidebar:
         st.caption("Presioná para escuchar la última respuesta del tutor")
         if st.button("▶️ Reproducir", use_container_width=True, key="btn_tts"):
             with st.spinner("🔊 Generando audio..."):
-                audio_bytes_tts = texto_a_voz(ultima_resp)
+                audio_bytes_tts, error_tts = texto_a_voz(ultima_resp)
             if audio_bytes_tts:
                 st.audio(audio_bytes_tts, format="audio/wav", autoplay=True)
             else:
-                st.warning("No se pudo generar el audio.")
+                st.warning(f"No se pudo generar el audio. Error: {error_tts}")
     else:
         st.caption("Esperá la primera respuesta del tutor")
 
