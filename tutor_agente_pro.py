@@ -210,6 +210,7 @@ defaults = {
     "ultima_respuesta_tts": None,
     "ultima_camara_id": None,
     "camara_b64_pendiente": None,
+    "solicitar_desafio": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -655,6 +656,13 @@ REGLAS ANTI-ERROR (MUY IMPORTANTE):
 - Antes de enseñar un "truco" matemático, verificá mentalmente que funciona para TODOS los casos del rango que vas a enseñar, no solo para algunos.
 - Si no estás seguro de que una técnica funciona en todos los casos, NO la enseñes. En su lugar, enseñá el método directo y confiable.
 - Es mejor admitir "no hay un truco mágico para esto, pero acá te explico cómo aprenderlo de forma segura" que inventar uno que falle.
+
+ÉTICA Y CONDUCTA (MUY IMPORTANTE):
+- Solo respondés preguntas educativas acordes al nivel del alumno. Si preguntan algo fuera del ámbito educativo, respondé amablemente que no podés ayudar con eso y redirigí a la clase.
+- Nunca generés contenido violento, sexual, discriminatorio o que promueva conductas dañinas.
+- Si el alumno expresa situaciones de angustia, bullying, problemas familiares graves o cualquier señal de que no está bien, respondé con empatía, sin entrar en detalles, y sugerí que hable con un adulto de confianza, su docente o sus padres.
+- Si el alumno pregunta sobre drogas, alcohol u otras sustancias, no des información al respecto y redirigí la conversación al contenido educativo.
+- Tratá a todos los alumnos con respeto, sin importar su nivel de conocimiento. Nunca hagas comentarios que puedan herir o desanimar.
 """
     response = llm_text.invoke(
         [SystemMessage(content=sys_prompt)] + state['messages'][:-1] + [HumanMessage(content=ultimo_msg)]
@@ -669,15 +677,10 @@ def examen_node(state: AgentState):
         "contador_pasos": 0,
     }
 
-def router(state: AgentState):
-    return "examen" if state.get("contador_pasos", 0) >= 6 else END
-
 workflow = StateGraph(AgentState)
 workflow.add_node("tutor", tutor_node)
-workflow.add_node("examen", examen_node)
 workflow.set_entry_point("tutor")
-workflow.add_conditional_edges("tutor", router, {"examen": "examen", END: END})
-workflow.add_edge("examen", END)
+workflow.add_edge("tutor", END)
 app = workflow.compile()
 
 # ─────────────────────────────────────────────
@@ -824,7 +827,20 @@ with st.sidebar:
         st.session_state.ultima_imagen_id = None
         st.session_state.descripcion_imagen = None
 
+    # ── BOTÓN DESAFÍO VOLUNTARIO ──
+    st.divider()
+    st.markdown(
+        "<div style='font-family:Caveat,cursive; font-size:1.15rem; font-weight:700; color:#f0e68c;'>"
+        "🎯 Evaluación voluntaria</div>",
+        unsafe_allow_html=True
+    )
+    st.caption("Cuando te sentís listo, pedí un desafío sobre lo que estuvimos viendo.")
+    if st.button("🎯 ¡Quiero ser evaluado!", use_container_width=True, key="btn_desafio"):
+        st.session_state.solicitar_desafio = True
+        st.rerun()
+
     if st.session_state.chat_history:
+        st.divider()
         chat_text = "--- RESUMEN DE CLASE ---\n\n"
         for m in st.session_state.chat_history:
             autor = "ALUMNO" if isinstance(m, HumanMessage) else "PROFESOR"
@@ -909,6 +925,27 @@ st.markdown(
     "Por favor, verificá las respuestas importantes con tu docente.</div>",
     unsafe_allow_html=True
 )
+
+# ── DESAFÍO VOLUNTARIO ──
+if st.session_state.get("solicitar_desafio"):
+    st.session_state.solicitar_desafio = False
+    with st.spinner(spinner_msg):
+        try:
+            state_desafio = {
+                "messages":           st.session_state.chat_history or [HumanMessage(content="Inicio de clase")],
+                "contexto_programa":  contexto,
+                "descripcion_imagen": st.session_state.descripcion_imagen,
+                "contador_pasos":     0,
+                "nivel_educativo":    nivel_edu,
+            }
+            resp_desafio = examen_node(state_desafio)
+            msg_desafio = resp_desafio["messages"][0]
+            st.session_state.chat_history.append(msg_desafio)
+            st.session_state.ultima_respuesta_tts = msg_desafio.content
+            with st.chat_message("assistant", avatar=avatar_asist):
+                st.markdown(msg_desafio.content)
+        except Exception as e:
+            st.warning("⚠️ No se pudo generar el desafío. Intentá de nuevo en un momento.")
 
 prompt_audio = st.session_state.get("prompt_desde_audio")
 if prompt_audio:
