@@ -931,21 +931,38 @@ if st.session_state.get("solicitar_desafio"):
     st.session_state.solicitar_desafio = False
     with st.spinner(spinner_msg):
         try:
-            state_desafio = {
-                "messages":           st.session_state.chat_history or [HumanMessage(content="Inicio de clase")],
-                "contexto_programa":  contexto,
-                "descripcion_imagen": st.session_state.descripcion_imagen,
-                "contador_pasos":     0,
-                "nivel_educativo":    nivel_edu,
-            }
-            resp_desafio = examen_node(state_desafio)
-            msg_desafio = resp_desafio["messages"][0]
+            # Resumimos la conversación reciente para que el desafío sea sobre el tema actual
+            temas_vistos = ""
+            if st.session_state.chat_history:
+                ultimos = st.session_state.chat_history[-6:]  # últimos 6 mensajes
+                temas_vistos = "\n".join([
+                    f"{'Alumno' if isinstance(m, HumanMessage) else 'Tutor'}: {m.content[:200]}"
+                    for m in ultimos
+                ])
+
+            prompt_desafio = f"""Generá un ejercicio corto, claro y desafiante para nivel {nivel_edu} 
+basado en los temas que se trataron en esta conversación reciente:
+
+{temas_vistos if temas_vistos else "Tema general del nivel."}
+
+El ejercicio debe tener 2 o 3 preguntas concretas. Luego de presentarlo, aclará que el alumno 
+puede responder en el chat y que lo vas a corregir y ayudar si lo necesita."""
+
+            response = llm_text.invoke([
+                SystemMessage(content=prompt_desafio),
+                HumanMessage(content="Generá el desafío ahora.")
+            ])
+            msg_desafio = AIMessage(content="🎯 **DESAFÍO (" + nivel_edu + "):**\n\n" + response.content)
             st.session_state.chat_history.append(msg_desafio)
             st.session_state.ultima_respuesta_tts = msg_desafio.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(msg_desafio.content)
         except Exception as e:
-            st.warning("⚠️ No se pudo generar el desafío. Intentá de nuevo en un momento.")
+            error_str = str(e).lower()
+            if "rate_limit" in error_str or "429" in error_str:
+                st.warning("⏳ Demasiadas consultas. Esperá un minuto y volvé a intentar.")
+            else:
+                st.warning("⚠️ No se pudo generar el desafío. Intentá de nuevo en un momento.")
 
 prompt_audio = st.session_state.get("prompt_desde_audio")
 if prompt_audio:
