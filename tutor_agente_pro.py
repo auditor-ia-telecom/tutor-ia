@@ -505,6 +505,19 @@ if not st.session_state.autenticado:
             <small>¿No tenés uno? Contactá al profe 📲</small>
         </p>
     </div>""", unsafe_allow_html=True)
+    st.markdown("""
+<div style='background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3);
+     border-radius:10px; padding:12px 16px; margin-bottom:16px;
+     font-family:Nunito,sans-serif; font-size:0.78rem; color:#555; text-align:center;'>
+    <b>⚖️ Términos de uso</b><br>
+    Este servicio es una herramienta de apoyo educativo con inteligencia artificial.
+    <b>No reemplaza a un docente ni constituye asesoramiento profesional.</b>
+    Las respuestas pueden contener errores — verificá la información importante con tu docente.
+    El uso del servicio implica la aceptación de estos términos.
+    El acceso es personal e intransferible. El proveedor no se responsabiliza por
+    decisiones tomadas en base al contenido generado por la IA.
+</div>
+""", unsafe_allow_html=True)
     token_input = st.text_input("🎟️ Código de acceso:", placeholder="Pegá tu token acá...").strip()
     col_a, col_b, col_c = st.columns([1,2,1])
     with col_b:
