@@ -13,6 +13,9 @@ from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from groq import Groq
+from docx import Document as _Document
+from docx.shared import Pt as _Pt, RGBColor as _RGBColor
+import io as _io
 
 # ─────────────────────────────────────────────
 # AVATARES SVG inline (base64 para usar en CSS)
@@ -779,11 +782,38 @@ if st.session_state.get("modo_docente"):
         st.divider()
         # Descarga siempre visible
         if st.session_state.chat_history:
-            chat_text = "--- CONSULTA DOCENTE ---\n\n"
+            # Generar Word
+            doc = _Document()
+            doc.core_properties.title = "Consulta Docente - Asistente IA"
+            titulo = doc.add_heading("Consulta Docente — Asistente Pedagógico IA", level=1)
+            titulo.runs[0].font.color.rgb = _RGBColor(0x28, 0x35, 0x93)
+            doc.add_paragraph(f"Herramienta: {herramienta}  |  Nivel: {nivel_doc}  |  Materia: {materia_doc or 'General'}")
+            doc.add_paragraph("")
             for m in st.session_state.chat_history:
-                autor = "DOCENTE" if isinstance(m, HumanMessage) else "ASISTENTE"
-                chat_text += f"[{autor}]: {m.content}\n\n"
-            st.download_button("📄 Descargar consulta", chat_text, "consulta_docente.txt", "text/plain", use_container_width=True)
+                if isinstance(m, HumanMessage):
+                    p = doc.add_paragraph()
+                    run = p.add_run("👨‍🏫 DOCENTE:")
+                    run.bold = True
+                    run.font.size = _Pt(11)
+                    doc.add_paragraph(m.content)
+                else:
+                    p = doc.add_paragraph()
+                    run = p.add_run("🤖 ASISTENTE:")
+                    run.bold = True
+                    run.font.color.rgb = _RGBColor(0x28, 0x35, 0x93)
+                    run.font.size = _Pt(11)
+                    doc.add_paragraph(m.content)
+                doc.add_paragraph("")
+            buf = _io.BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            st.download_button(
+                "📄 Descargar en Word",
+                data=buf.getvalue(),
+                file_name="consulta_docente.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
+            )
         else:
             st.caption("📄 La descarga aparece luego de la primera respuesta")
 
@@ -1019,7 +1049,37 @@ with st.sidebar:
         for m in st.session_state.chat_history:
             autor = "ALUMNO" if isinstance(m, HumanMessage) else "PROFESOR"
             chat_text += f"[{autor}]: {m.content}\n\n"
-        st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain")
+        from docx import Document as _DocAlumno
+        from docx.shared import Pt as _PtA, RGBColor as _RGBColorA
+        import io as _ioA
+        doc_a = _DocAlumno()
+        doc_a.add_heading("Resumen de Clase — Aula Virtual IA", level=1)
+        doc_a.add_paragraph(f"Alumno: {st.session_state.get('nombre_alumno','')}  |  Nivel: {nivel_edu}")
+        doc_a.add_paragraph("")
+        for m in st.session_state.chat_history:
+            if isinstance(m, HumanMessage):
+                p = doc_a.add_paragraph()
+                run = p.add_run("👤 ALUMNO:")
+                run.bold = True
+                run.font.size = _PtA(11)
+                doc_a.add_paragraph(m.content)
+            else:
+                p = doc_a.add_paragraph()
+                run = p.add_run("🤖 TUTOR:")
+                run.bold = True
+                run.font.color.rgb = _RGBColorA(0x28, 0x35, 0x93)
+                run.font.size = _PtA(11)
+                doc_a.add_paragraph(m.content)
+            doc_a.add_paragraph("")
+        buf_a = _ioA.BytesIO()
+        doc_a.save(buf_a)
+        buf_a.seek(0)
+        st.download_button(
+            "📄 Descargar Clase en Word",
+            data=buf_a.getvalue(),
+            file_name="clase.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
 # Inyectamos el tema DESPUÉS de leer el nivel del selectbox
 inyectar_tema(nivel_edu)
