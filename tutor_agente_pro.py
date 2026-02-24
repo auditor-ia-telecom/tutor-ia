@@ -1184,225 +1184,109 @@ with st.sidebar:
 # Inyectamos el tema DESPUÉS de leer el nivel del selectbox
 inyectar_tema(nivel_edu)
 
-# ── MENÚ MÓVIL: visible solo en pantallas pequeñas ──
-_t = TEMAS[nivel_edu]
-_nombre_mob  = st.session_state.get("nombre_alumno", "")
-_vence_mob   = st.session_state.get("token_vence", "")
-_dias_mob    = st.session_state.get("dias_restantes", 0)
-_nivel_idx   = ["Primario","Secundario","Universidad"].index(nivel_edu)
+# ── MENÚ MÓVIL: reemplaza el sidebar en pantallas pequeñas ──
+# Ocultamos el sidebar en móvil via CSS (ya está en el bloque superior)
+# Usamos st.expander nativo de Streamlit — funciona en todos los dispositivos
 
-st.markdown(f"""
+_nombre_mob = st.session_state.get("nombre_alumno", "")
+_vence_mob  = st.session_state.get("token_vence", "")
+_dias_mob   = st.session_state.get("dias_restantes", 0)
+
+# Ocultar en PC, mostrar en móvil usando CSS sobre el expander
+st.markdown("""
 <style>
-#mob-bar {{
-    display: none;
-    position: sticky;
-    top: 0;
-    z-index: 9000;
-    background: {_t['sidebar_bg']};
-    border-bottom: 3px solid {_t['sidebar_borde']};
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    padding: 8px 12px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    -webkit-user-select: none;
-    user-select: none;
-}}
-#mob-bar .mob-title {{
-    font-family: 'Caveat', cursive;
-    font-size: 1.2rem;
-    color: #f0e68c;
-    flex: 1;
-    pointer-events: none;
-}}
-#mob-toggle {{
-    background: rgba(255,255,255,0.25);
-    border: 2px solid rgba(255,255,255,0.6);
-    border-radius: 8px;
-    color: white;
-    font-size: 1.3rem;
-    padding: 6px 14px;
-    cursor: pointer;
-    line-height: 1;
-    -webkit-tap-highlight-color: rgba(255,255,255,0.3);
-    touch-action: manipulation;
-}}
-#mob-panel {{
-    display: none;
-    background: {_t['sidebar_bg']};
-    border-bottom: 3px solid {_t['sidebar_borde']};
-    padding: 14px 16px 18px;
-    flex-direction: column;
-    gap: 12px;
-    z-index: 8999;
-}}
-.mob-info {{
-    background: rgba(39,174,96,0.25);
-    border: 1px solid rgba(39,174,96,0.5);
-    border-radius: 8px;
-    padding: 8px 12px;
-    text-align: center;
-    color: white;
-    font-family: 'Nunito', sans-serif;
-    font-size: 0.85rem;
-}}
-.mob-label {{
-    font-family: 'Caveat', cursive;
-    font-size: 1.05rem;
-    color: #f0e68c;
-    margin-bottom: 4px;
-}}
-#mob-nivel {{
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 2px solid rgba(255,255,255,0.6);
-    background: rgba(255,255,255,0.18);
-    color: white;
-    font-size: 0.95rem;
-    font-weight: 600;
-    touch-action: manipulation;
-}}
-#mob-nivel option {{ color: #222; background: white; }}
-.mob-btns {{ display: flex; gap: 8px; }}
-.mob-btn {{
-    flex: 1;
-    padding: 10px 6px;
-    border-radius: 8px;
-    border: none;
-    font-family: 'Caveat', cursive;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    -webkit-tap-highlight-color: rgba(0,0,0,0.2);
-    touch-action: manipulation;
-}}
-.mob-btn-reiniciar {{ background: #e67e22; color: white; }}
-.mob-btn-salir     {{ background: #c0392b; color: white; }}
-.mob-btn-wide      {{ width: 100%; padding: 10px; border-radius: 8px; border: none;
-                      font-family: 'Caveat', cursive; font-size: 1rem; font-weight: 700;
-                      cursor: pointer; touch-action: manipulation; }}
-.mob-btn-desafio   {{ background: #27ae60; color: white; }}
-.mob-btn-docente   {{ background: #8e44ad; color: white; }}
-@media (max-width: 767px) {{
-    #mob-bar {{ display: flex !important; }}
-}}
+/* En PC ocultamos el expander-menú (el sidebar ya tiene todo) */
+@media (min-width: 768px) {
+    div[data-testid="stExpander"]:has(#mob-menu-anchor) {
+        display: none !important;
+    }
+}
 </style>
-
-<div id="mob-bar">
-    <span class="mob-title">🏫 Aula Virtual</span>
-    <button id="mob-toggle">☰ Menú</button>
-</div>
-
-<div id="mob-panel">
-    <div class="mob-info">
-        <b>✅ {_nombre_mob}</b><br>
-        Acceso: {_vence_mob} · {_dias_mob}d restantes
-    </div>
-    <div>
-        <div class="mob-label">📚 Nivel:</div>
-        <select id="mob-nivel">
-            <option value="Primario"    {'selected' if nivel_edu=='Primario'    else ''}>🎨 Primario</option>
-            <option value="Secundario"  {'selected' if nivel_edu=='Secundario'  else ''}>📱 Secundario</option>
-            <option value="Universidad" {'selected' if nivel_edu=='Universidad' else ''}>🎓 Universidad</option>
-        </select>
-    </div>
-    <div class="mob-btns">
-        <button class="mob-btn mob-btn-reiniciar" id="mob-btn-reiniciar">🗑️ Reiniciar</button>
-        <button class="mob-btn mob-btn-salir"     id="mob-btn-salir">🚪 Salir</button>
-    </div>
-    <button class="mob-btn-wide mob-btn-desafio" id="mob-btn-desafio">🎯 ¡Quiero ser evaluado!</button>
-    {'<button class="mob-btn-wide mob-btn-docente" id="mob-btn-docente">🔄 Cambiar a Docente</button>' if st.session_state.get('modo_mixto') else ''}
-</div>
-
-<script>
-(function() {{
-    // Esperamos que el DOM esté listo
-    function init() {{
-        var toggle = document.getElementById('mob-toggle');
-        var panel  = document.getElementById('mob-panel');
-        if (!toggle || !panel) {{ setTimeout(init, 100); return; }}
-
-        // Toggle del panel: usamos touchend para móvil y click para PC
-        function togglePanel(e) {{
-            e.preventDefault();
-            e.stopPropagation();
-            var isOpen = panel.style.display === 'flex';
-            panel.style.display = isOpen ? 'none' : 'flex';
-            panel.style.flexDirection = 'column';
-        }}
-        toggle.addEventListener('touchend', togglePanel, {{passive: false}});
-        toggle.addEventListener('click',    togglePanel);
-
-        // Cerrar panel al tocar fuera
-        document.addEventListener('touchend', function(e) {{
-            var bar = document.getElementById('mob-bar');
-            if (panel.style.display === 'flex' && bar &&
-                !bar.contains(e.target) && !panel.contains(e.target)) {{
-                panel.style.display = 'none';
-            }}
-        }}, {{passive: true}});
-
-        // Cambiar nivel
-        var sel = document.getElementById('mob-nivel');
-        if (sel) {{
-            sel.addEventListener('change', function() {{
-                var val = this.value;
-                // Buscar el select de Streamlit en el mismo documento (no parent, está en el mismo iframe)
-                var allSelects = document.querySelectorAll('select');
-                for (var i = 0; i < allSelects.length; i++) {{
-                    if (allSelects[i].id === 'mob-nivel') continue;
-                    var opts = allSelects[i].options;
-                    for (var j = 0; j < opts.length; j++) {{
-                        if (opts[j].text.includes(val)) {{
-                            allSelects[i].value = opts[j].value;
-                            allSelects[i].dispatchEvent(new Event('change', {{bubbles: true}}));
-                            break;
-                        }}
-                    }}
-                }}
-                panel.style.display = 'none';
-            }});
-        }}
-
-        // Función genérica para clickear botones de Streamlit por texto
-        function clickStBtn(palabras) {{
-            var btns = document.querySelectorAll('button');
-            for (var i = 0; i < btns.length; i++) {{
-                if (btns[i].id && btns[i].id.startsWith('mob-')) continue;
-                var txt = btns[i].innerText || btns[i].textContent || '';
-                for (var j = 0; j < palabras.length; j++) {{
-                    if (txt.indexOf(palabras[j]) >= 0) {{
-                        btns[i].click();
-                        panel.style.display = 'none';
-                        return;
-                    }}
-                }}
-            }}
-        }}
-
-        function bindBtn(id, palabras) {{
-            var b = document.getElementById(id);
-            if (!b) return;
-            function handler(e) {{ e.preventDefault(); e.stopPropagation(); clickStBtn(palabras); }}
-            b.addEventListener('touchend', handler, {{passive: false}});
-            b.addEventListener('click',    handler);
-        }}
-
-        bindBtn('mob-btn-reiniciar', ['Reiniciar']);
-        bindBtn('mob-btn-salir',     ['Salir']);
-        bindBtn('mob-btn-desafio',   ['evaluado', 'Desaf']);
-        bindBtn('mob-btn-docente',   ['Docente']);
-    }}
-
-    if (document.readyState === 'loading') {{
-        document.addEventListener('DOMContentLoaded', init);
-    }} else {{
-        init();
-    }}
-}})();
-</script>
+<span id="mob-menu-anchor" style="display:none"></span>
 """, unsafe_allow_html=True)
+
+with st.expander(f"☰  Menú  ·  {_nombre_mob}  ·  {_dias_mob}d restantes", expanded=False):
+    st.markdown(f"""
+    <div style='background:rgba(39,174,96,0.15); border:1px solid rgba(39,174,96,0.4);
+         border-radius:8px; padding:8px 12px; text-align:center;
+         font-size:0.85rem; margin-bottom:8px;'>
+        ✅ <b>{_nombre_mob}</b> · Acceso hasta: {_vence_mob}
+    </div>
+    """, unsafe_allow_html=True)
+
+    nivel_mob = st.selectbox(
+        "📚 Nivel:",
+        ["Primario", "Secundario", "Universidad"],
+        index=["Primario","Secundario","Universidad"].index(nivel_edu),
+        key="nivel_mob_select"
+    )
+    if nivel_mob != st.session_state.nivel_actual:
+        st.session_state.nivel_actual = nivel_mob
+        st.session_state.chat_history = []
+        st.session_state.contador = 0
+        st.rerun()
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        if st.button("🗑️ Reiniciar", key="mob_reiniciar", use_container_width=True):
+            st.session_state.chat_history = []
+            st.session_state.contador = 0
+            st.session_state.ultima_imagen_id = None
+            st.session_state.descripcion_imagen = None
+            st.rerun()
+    with col_m2:
+        if st.button("🚪 Salir", key="mob_salir", use_container_width=True):
+            for k, v in defaults.items():
+                st.session_state[k] = v
+            st.session_state.nombre_alumno  = ""
+            st.session_state.token_vence    = ""
+            st.session_state.dias_restantes = 0
+            st.rerun()
+
+    if st.session_state.get("modo_mixto"):
+        if st.button("🔄 Cambiar a Docente", key="mob_docente", use_container_width=True):
+            st.session_state.modo_docente      = True
+            st.session_state.modo_seleccionado = None
+            st.session_state.chat_history      = []
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("**🎙️ Consulta por voz**")
+    st.caption("1️⃣ Grabá  ·  2️⃣ Detené  ·  3️⃣ Se envía solo")
+    audio_mob = st.audio_input(" ", key="audio_mob", label_visibility="collapsed")
+    if audio_mob is not None:
+        audio_bytes_mob = audio_mob.getvalue()
+        audio_id_mob = str(len(audio_bytes_mob))
+        if audio_id_mob != st.session_state.get("ultimo_audio_id"):
+            st.session_state.ultimo_audio_id = audio_id_mob
+            with st.spinner("🎙️ Transcribiendo..."):
+                texto_mob = transcribir_audio(audio_bytes_mob)
+            if texto_mob.startswith("ERROR_AUDIO:"):
+                st.warning("No se pudo transcribir. Escribí tu consulta.")
+            else:
+                st.session_state.prompt_desde_audio = texto_mob
+                st.success(f'✅ "{texto_mob}"')
+
+    st.markdown("---")
+    st.markdown("**🖼️ Subir imagen / foto**")
+    img_mob = st.file_uploader("Foto ejercicio", type=["jpg","png","jpeg"], key="img_mob")
+    if img_mob:
+        imagen_id_mob = f"{img_mob.name}_{img_mob.size}"
+        if imagen_id_mob != st.session_state.ultima_imagen_id:
+            st.session_state.ultima_imagen_id = imagen_id_mob
+            st.session_state.descripcion_imagen = None
+            with st.spinner("🔍 Analizando imagen..."):
+                img_b64_mob = base64.b64encode(img_mob.read()).decode("utf-8")
+                img_mob.seek(0)
+                st.session_state.descripcion_imagen = describir_imagen_automaticamente(img_b64_mob)
+        if st.session_state.descripcion_imagen:
+            st.success("✅ Imagen analizada")
+
+    st.markdown("---")
+    if st.button("🎯 ¡Quiero ser evaluado!", key="mob_desafio", use_container_width=True):
+        st.session_state.solicitar_desafio = True
+        st.rerun()
+
 
 # Títulos según nivel
 titulos = {
