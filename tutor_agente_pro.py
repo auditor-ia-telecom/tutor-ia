@@ -747,13 +747,45 @@ if st.session_state.get("modo_docente"):
                 st.session_state[k] = v
             st.rerun()
 
+        st.divider()
+        # PDF docente
+        st.markdown(
+            "<div style='font-family:Caveat,cursive;font-size:1.1rem;font-weight:700;color:#f0e68c;'>"
+            "📄 Cargar material</div>", unsafe_allow_html=True
+        )
+        pdf_docente = st.file_uploader("PDF (programa, material)", type="pdf", key="pdf_docente")
+        img_docente = st.file_uploader("Imagen (foto, ejercicio)", type=["jpg","png","jpeg"], key="img_docente")
+
+        if pdf_docente:
+            from pypdf import PdfReader as _PdfReader
+            texto_pdf_doc = "".join([p.extract_text() or "" for p in _PdfReader(pdf_docente).pages])
+            st.session_state["contexto_docente_pdf"] = texto_pdf_doc
+            st.success("✅ PDF cargado en memoria")
+
+        if img_docente:
+            img_id_doc = f"{img_docente.name}_{img_docente.size}"
+            if img_id_doc != st.session_state.get("ultima_img_docente_id"):
+                st.session_state.ultima_img_docente_id = img_id_doc
+                st.session_state["desc_img_docente"] = None
+                with st.spinner("🔍 Analizando imagen..."):
+                    img_b64_doc = base64.b64encode(img_docente.read()).decode("utf-8")
+                    img_docente.seek(0)
+                    st.session_state["desc_img_docente"] = describir_imagen_automaticamente(img_b64_doc)
+            if st.session_state.get("desc_img_docente"):
+                st.success("✅ Imagen analizada")
+                with st.expander("👁️ Ver descripción"):
+                    st.write(st.session_state["desc_img_docente"])
+
+        st.divider()
+        # Descarga siempre visible
         if st.session_state.chat_history:
-            st.divider()
             chat_text = "--- CONSULTA DOCENTE ---\n\n"
             for m in st.session_state.chat_history:
                 autor = "DOCENTE" if isinstance(m, HumanMessage) else "ASISTENTE"
                 chat_text += f"[{autor}]: {m.content}\n\n"
-            st.download_button("📄 Descargar", chat_text, "consulta_docente.txt", "text/plain")
+            st.download_button("📄 Descargar consulta", chat_text, "consulta_docente.txt", "text/plain", use_container_width=True)
+        else:
+            st.caption("📄 La descarga aparece luego de la primera respuesta")
 
     # Interfaz principal docente
     st.title("👨‍🏫 Asistente Pedagógico IA")
@@ -781,6 +813,14 @@ if st.session_state.get("modo_docente"):
         with st.chat_message("user", avatar="👨‍🏫"):
             st.markdown(prompt_doc)
 
+        contexto_pdf_doc = st.session_state.get("contexto_docente_pdf", "")
+        contexto_img_doc = st.session_state.get("desc_img_docente", "")
+        contexto_extra = ""
+        if contexto_pdf_doc:
+            contexto_extra += f"\n\nMATERIAL PDF CARGADO POR EL DOCENTE:\n{contexto_pdf_doc[:3000]}"
+        if contexto_img_doc:
+            contexto_extra += f"\n\nIMAGEN ANALIZADA:\n{contexto_img_doc}"
+
         sys_prompt_docente = f"""Sos un asistente pedagógico experto al servicio de un docente de {nivel_doc}.
 Tu especialidad es: {herramienta}.
 Materia: {materia_doc if materia_doc else "general"}.
@@ -795,7 +835,8 @@ SEGÚN LA HERRAMIENTA SELECCIONADA:
 - Adaptación para distintos niveles: mostrá cómo adaptar el mismo contenido a distintos grupos.
 - Consulta pedagógica libre: respondé con profundidad y criterio pedagógico.
 
-Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula real."""
+Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula real.
+{contexto_extra}"""
 
         with st.spinner("📝 Preparando material..."):
             try:
