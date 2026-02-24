@@ -1237,6 +1237,7 @@ if prompt:
             st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
+            st.rerun()
         except Exception as e:
             error_str = str(e).lower()
             # Rate limit
