@@ -195,12 +195,31 @@ TEMAS = {
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓")
 
-# Ocultar barra superior de Streamlit
+# Ocultar barra superior y asegurar que el botón del sidebar siempre sea visible
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
+/* Botón para abrir/cerrar sidebar siempre visible */
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background: rgba(40,53,147,0.9) !important;
+    border-radius: 0 8px 8px 0 !important;
+    color: white !important;
+    width: 32px !important;
+    height: 48px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    position: fixed !important;
+    left: 0 !important;
+    z-index: 999 !important;
+    cursor: pointer !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -545,9 +564,10 @@ if not st.session_state.autenticado:
                     st.session_state.token_vence      = resultado["vence"]
                     st.session_state.dias_restantes   = resultado["dias_restantes"]
                     nombre_raw = resultado["nombre"]
+                    st.session_state.modo_seleccionado = None
                     if nombre_raw.startswith("DOCENTE_ALUMNO_"):
-                        st.session_state.modo_mixto   = True
-                        st.session_state.modo_docente = False
+                        st.session_state.modo_mixto    = True
+                        st.session_state.modo_docente  = False
                         st.session_state.nombre_alumno = nombre_raw.replace("DOCENTE_ALUMNO_", "")
                     elif nombre_raw.startswith("DOCENTE_"):
                         st.session_state.modo_docente  = True
@@ -768,7 +788,7 @@ if st.session_state.get("modo_mixto") and not st.session_state.get("modo_selecci
 # MODO DOCENTE
 # ─────────────────────────────────────────────
 if st.session_state.get("modo_docente"):
-    nombre_doc = st.session_state.nombre_alumno.replace("DOCENTE_", "")
+    nombre_doc = st.session_state.nombre_alumno
     
     # Sidebar docente
     with st.sidebar:
