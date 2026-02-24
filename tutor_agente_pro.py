@@ -846,6 +846,7 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
                 st.session_state.chat_history.append(response)
                 with st.chat_message("assistant", avatar="🤖"):
                     st.markdown(response.content)
+                st.rerun()
             except Exception as e:
                 error_str = str(e).lower()
                 if "rate_limit" in error_str or "429" in error_str:
