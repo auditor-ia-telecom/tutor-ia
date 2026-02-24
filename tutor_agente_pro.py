@@ -195,51 +195,74 @@ TEMAS = {
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
-# Ocultar barra superior y mejorar sidebar para móvil
+# Ocultar barra superior y arreglar sidebar en móvil
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-
-/* En móvil: el botón nativo de colapsar/expandir del sidebar queda visible
-   pero lo estilizamos para que sea más grande y fácil de tocar */
-[data-testid="collapsedControl"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 2.5rem !important;
-    height: 2.5rem !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: rgba(40,53,147,0.85) !important;
-    border-radius: 0 8px 8px 0 !important;
-    box-shadow: 2px 2px 8px rgba(0,0,0,0.3) !important;
-}
-[data-testid="collapsedControl"] svg {
-    fill: white !important;
-    width: 1.2rem !important;
-    height: 1.2rem !important;
-}
-[data-testid="stSidebarCollapseButton"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
 </style>
 <script>
 (function() {
-    // Limpiar SOLO la clave de estado del sidebar en localStorage para que
-    // Streamlit no recuerde el estado colapsado entre sesiones
-    try {
-        var keysToRemove = [];
-        for (var i = 0; i < localStorage.length; i++) {
-            var key = localStorage.key(i);
-            if (key && (key.toLowerCase().includes('sidebar'))) {
-                keysToRemove.push(key);
+    // El botón collapsedControl vive en window.parent, no en este iframe.
+    // Lo buscamos y lo forzamos visible con estilo propio.
+    function fixSidebarButton() {
+        try {
+            var parentDoc = window.parent.document;
+
+            // Botón para ABRIR el sidebar cuando está cerrado (collapsedControl)
+            var btnAbrir = parentDoc.querySelector('[data-testid="collapsedControl"]');
+            if (btnAbrir) {
+                btnAbrir.style.setProperty('display', 'flex', 'important');
+                btnAbrir.style.setProperty('visibility', 'visible', 'important');
+                btnAbrir.style.setProperty('opacity', '1', 'important');
+                btnAbrir.style.setProperty('position', 'fixed', 'important');
+                btnAbrir.style.setProperty('top', '10px', 'important');
+                btnAbrir.style.setProperty('left', '10px', 'important');
+                btnAbrir.style.setProperty('z-index', '999999', 'important');
+                btnAbrir.style.setProperty('width', '44px', 'important');
+                btnAbrir.style.setProperty('height', '44px', 'important');
+                btnAbrir.style.setProperty('background', 'rgba(40,53,147,0.90)', 'important');
+                btnAbrir.style.setProperty('border-radius', '50%', 'important');
+                btnAbrir.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.4)', 'important');
+                btnAbrir.style.setProperty('align-items', 'center', 'important');
+                btnAbrir.style.setProperty('justify-content', 'center', 'important');
+                btnAbrir.style.setProperty('cursor', 'pointer', 'important');
+                var svg = btnAbrir.querySelector('svg');
+                if (svg) {
+                    svg.style.setProperty('fill', 'white', 'important');
+                    svg.style.setProperty('width', '22px', 'important');
+                    svg.style.setProperty('height', '22px', 'important');
+                }
             }
-        }
-        keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
+
+            // Botón para CERRAR el sidebar (stSidebarCollapseButton)
+            var btnCerrar = parentDoc.querySelector('[data-testid="stSidebarCollapseButton"]');
+            if (btnCerrar) {
+                btnCerrar.style.setProperty('display', 'flex', 'important');
+                btnCerrar.style.setProperty('visibility', 'visible', 'important');
+                btnCerrar.style.setProperty('opacity', '1', 'important');
+            }
+
+            // Limpiar localStorage para que no recuerde el estado colapsado
+            var keysToRemove = [];
+            for (var i = 0; i < window.parent.localStorage.length; i++) {
+                var key = window.parent.localStorage.key(i);
+                if (key && key.toLowerCase().includes('sidebar')) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(function(k) { window.parent.localStorage.removeItem(k); });
+
+        } catch(e) {}
+    }
+
+    fixSidebarButton();
+    setInterval(fixSidebarButton, 500);
+
+    try {
+        var observer = new MutationObserver(fixSidebarButton);
+        observer.observe(window.parent.document.body, { childList: true, subtree: true, attributes: true });
     } catch(e) {}
 })();
 </script>
