@@ -1378,6 +1378,42 @@ if not st.session_state.get("modo_docente"):
             st.session_state.solicitar_desafio = True
             st.rerun()
 
+        if st.session_state.chat_history:
+            st.markdown("---")
+            from docx import Document as _DocMob
+            from docx.shared import Pt as _PtMob, RGBColor as _RGBMob
+            import io as _ioMob
+            doc_mob = _DocMob()
+            doc_mob.add_heading("Resumen de Clase — Aula Virtual IA", level=1)
+            doc_mob.add_paragraph(f"Alumno: {st.session_state.get('nombre_alumno','')}  |  Nivel: {nivel_edu}")
+            doc_mob.add_paragraph("")
+            for m in st.session_state.chat_history:
+                if isinstance(m, HumanMessage):
+                    p = doc_mob.add_paragraph()
+                    run = p.add_run("👤 ALUMNO:")
+                    run.bold = True
+                    run.font.size = _PtMob(11)
+                    doc_mob.add_paragraph(m.content)
+                else:
+                    p = doc_mob.add_paragraph()
+                    run = p.add_run("🤖 TUTOR:")
+                    run.bold = True
+                    run.font.color.rgb = _RGBMob(0x28, 0x35, 0x93)
+                    run.font.size = _PtMob(11)
+                    doc_mob.add_paragraph(m.content)
+                doc_mob.add_paragraph("")
+            buf_mob = _ioMob.BytesIO()
+            doc_mob.save(buf_mob)
+            buf_mob.seek(0)
+            st.download_button(
+                "📄 Descargar Clase en Word",
+                data=buf_mob.getvalue(),
+                file_name="clase.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key="mob_download_word",
+                use_container_width=True
+            )
+
 
 # Títulos según nivel
 titulos = {
