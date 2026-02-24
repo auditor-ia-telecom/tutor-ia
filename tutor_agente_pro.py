@@ -13,6 +13,9 @@ from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from groq import Groq
+from docx import Document as _Document
+from docx.shared import Pt as _Pt, RGBColor as _RGBColor
+import io as _io
 
 # ─────────────────────────────────────────────
 # AVATARES SVG inline (base64 para usar en CSS)
@@ -221,6 +224,8 @@ defaults = {
     "camara_b64_pendiente": None,
     "solicitar_desafio": False,
     "modo_docente": False,
+    "modo_mixto": False,
+    "modo_seleccionado": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -539,8 +544,19 @@ if not st.session_state.autenticado:
                     st.session_state.nombre_alumno    = resultado["nombre"]
                     st.session_state.token_vence      = resultado["vence"]
                     st.session_state.dias_restantes   = resultado["dias_restantes"]
-                    # Detectar modo docente por prefijo en el nombre
-                    st.session_state.modo_docente     = resultado["nombre"].startswith("DOCENTE_")
+                    nombre_raw = resultado["nombre"]
+                    st.session_state.modo_seleccionado = None
+                    if nombre_raw.startswith("DOCENTE_ALUMNO_"):
+                        st.session_state.modo_mixto    = True
+                        st.session_state.modo_docente  = False
+                        st.session_state.nombre_alumno = nombre_raw.replace("DOCENTE_ALUMNO_", "")
+                    elif nombre_raw.startswith("DOCENTE_"):
+                        st.session_state.modo_docente  = True
+                        st.session_state.modo_mixto    = False
+                        st.session_state.nombre_alumno = nombre_raw.replace("DOCENTE_", "")
+                    else:
+                        st.session_state.modo_docente  = False
+                        st.session_state.modo_mixto    = False
                     st.rerun()
                 else:
                     st.error(f"❌ {resultado['motivo']}")
@@ -681,6 +697,7 @@ REGLAS ANTI-ERROR (MUY IMPORTANTE):
 - Antes de enseñar un "truco" matemático, verificá mentalmente que funciona para TODOS los casos del rango que vas a enseñar, no solo para algunos.
 - Si no estás seguro de que una técnica funciona en todos los casos, NO la enseñes. En su lugar, enseñá el método directo y confiable.
 - Es mejor admitir "no hay un truco mágico para esto, pero acá te explico cómo aprenderlo de forma segura" que inventar uno que falle.
+- Si el alumno pide que dibujes o muestres un diagrama, esquema o imagen, explicá brevemente el concepto con texto o símbolos ASCII, y luego sugerí: "Para ver un diagrama visual buscá '[nombre del concepto]' en Google Imágenes".
 
 ÉTICA Y CONDUCTA (MUY IMPORTANTE):
 - Solo respondés preguntas educativas acordes al nivel del alumno. Si preguntan algo fuera del ámbito educativo, respondé amablemente que no podés ayudar con eso y redirigí a la clase.
@@ -709,10 +726,50 @@ workflow.add_edge("tutor", END)
 app = workflow.compile()
 
 # ─────────────────────────────────────────────
+# SELECTOR DE MODO (usuario docente + alumno)
+# ─────────────────────────────────────────────
+if st.session_state.get("modo_mixto") and not st.session_state.get("modo_seleccionado"):
+    nombre_mix = st.session_state.get("nombre_alumno", "")
+    st.markdown(f"""
+<div style='text-align:center; padding:3rem 0 1rem;'>
+    <div style='font-size:3.5rem;'>🎓</div>
+    <h1 style='font-family:Caveat,cursive; font-size:2.2rem; color:#283593;'>Bienvenido/a, {nombre_mix}</h1>
+    <p style='font-family:Nunito,sans-serif; color:#555; font-size:1.05rem; margin-top:8px;'>
+        ¿Con qué rol querés ingresar hoy?
+    </p>
+</div>""", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+<div style='background:rgba(40,53,147,0.08); border:2px solid rgba(40,53,147,0.2);
+     border-radius:12px; padding:28px; text-align:center;'>
+    <div style='font-size:2.5rem;'>🎒</div>
+    <h3 style='font-family:Caveat,cursive; color:#283593; margin:10px 0 6px;'>Modo Alumno</h3>
+    <p style='font-size:0.88rem; color:#666;'>Tutor IA disponible 24hs para tus consultas y estudio</p>
+</div>""", unsafe_allow_html=True)
+        if st.button("Entrar como Alumno", use_container_width=True, key="sel_alumno"):
+            st.session_state.modo_seleccionado = "alumno"
+            st.session_state.modo_docente = False
+            st.rerun()
+    with col2:
+        st.markdown("""
+<div style='background:rgba(39,174,96,0.08); border:2px solid rgba(39,174,96,0.2);
+     border-radius:12px; padding:28px; text-align:center;'>
+    <div style='font-size:2.5rem;'>👨‍🏫</div>
+    <h3 style='font-family:Caveat,cursive; color:#1a7a4a; margin:10px 0 6px;'>Modo Docente</h3>
+    <p style='font-size:0.88rem; color:#666;'>Asistente pedagógico para planificaciones y material didáctico</p>
+</div>""", unsafe_allow_html=True)
+        if st.button("Entrar como Docente", use_container_width=True, key="sel_docente"):
+            st.session_state.modo_seleccionado = "docente"
+            st.session_state.modo_docente = True
+            st.rerun()
+    st.stop()
+
+# ─────────────────────────────────────────────
 # MODO DOCENTE
 # ─────────────────────────────────────────────
 if st.session_state.get("modo_docente"):
-    nombre_doc = st.session_state.nombre_alumno.replace("DOCENTE_", "")
+    nombre_doc = st.session_state.nombre_alumno
     
     # Sidebar docente
     with st.sidebar:
@@ -742,6 +799,12 @@ if st.session_state.get("modo_docente"):
         if st.button("🗑️ Nueva consulta", use_container_width=True):
             st.session_state.chat_history = []
             st.rerun()
+        if st.session_state.get("modo_mixto"):
+            if st.button("🔄 Cambiar a Alumno", use_container_width=True):
+                st.session_state.modo_docente    = False
+                st.session_state.modo_seleccionado = None
+                st.session_state.chat_history    = []
+                st.rerun()
         if st.button("🚪 Salir", use_container_width=True):
             for k, v in defaults.items():
                 st.session_state[k] = v
@@ -779,11 +842,38 @@ if st.session_state.get("modo_docente"):
         st.divider()
         # Descarga siempre visible
         if st.session_state.chat_history:
-            chat_text = "--- CONSULTA DOCENTE ---\n\n"
+            # Generar Word
+            doc = _Document()
+            doc.core_properties.title = "Consulta Docente - Asistente IA"
+            titulo = doc.add_heading("Consulta Docente — Asistente Pedagógico IA", level=1)
+            titulo.runs[0].font.color.rgb = _RGBColor(0x28, 0x35, 0x93)
+            doc.add_paragraph(f"Herramienta: {herramienta}  |  Nivel: {nivel_doc}  |  Materia: {materia_doc or 'General'}")
+            doc.add_paragraph("")
             for m in st.session_state.chat_history:
-                autor = "DOCENTE" if isinstance(m, HumanMessage) else "ASISTENTE"
-                chat_text += f"[{autor}]: {m.content}\n\n"
-            st.download_button("📄 Descargar consulta", chat_text, "consulta_docente.txt", "text/plain", use_container_width=True)
+                if isinstance(m, HumanMessage):
+                    p = doc.add_paragraph()
+                    run = p.add_run("👨‍🏫 DOCENTE:")
+                    run.bold = True
+                    run.font.size = _Pt(11)
+                    doc.add_paragraph(m.content)
+                else:
+                    p = doc.add_paragraph()
+                    run = p.add_run("🤖 ASISTENTE:")
+                    run.bold = True
+                    run.font.color.rgb = _RGBColor(0x28, 0x35, 0x93)
+                    run.font.size = _Pt(11)
+                    doc.add_paragraph(m.content)
+                doc.add_paragraph("")
+            buf = _io.BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            st.download_button(
+                "📄 Descargar en Word",
+                data=buf.getvalue(),
+                file_name="consulta_docente.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
+            )
         else:
             st.caption("📄 La descarga aparece luego de la primera respuesta")
 
@@ -836,6 +926,14 @@ SEGÚN LA HERRAMIENTA SELECCIONADA:
 - Consulta pedagógica libre: respondé con profundidad y criterio pedagógico.
 
 Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula real.
+- Si el docente pide imágenes, diagramas o esquemas visuales, describílos con texto o ASCII y sugerí buscarlo en Google Imágenes o en sitios especializados como PhET, GeoGebra o Wikipedia.
+
+ÉTICA PROFESIONAL DOCENTE (MUY IMPORTANTE):
+- Respondé siempre con criterio pedagógico y profesional, respetando la diversidad y dignidad de todos los alumnos.
+- No generés contenido discriminatorio, violento o que atente contra la integridad de ningún estudiante o colega.
+- Si el docente plantea una situación de riesgo para un alumno (violencia, abuso, salud mental), orientá con empatía y derivá a los canales institucionales correspondientes (equipo de orientación, dirección, servicio social).
+- Podés abordar temas sensibles como drogas, sexualidad o violencia desde una perspectiva pedagógica y preventiva, siempre con lenguaje profesional y enfoque en el bienestar del alumno.
+- No reemplazás el criterio del docente ni de las autoridades educativas. Tus respuestas son orientaciones de apoyo, no prescripciones.
 {contexto_extra}"""
 
         with st.spinner("📝 Preparando material..."):
@@ -895,6 +993,12 @@ with st.sidebar:
             st.session_state.nombre_alumno  = ""
             st.session_state.token_vence    = ""
             st.session_state.dias_restantes = 0
+            st.rerun()
+    if st.session_state.get("modo_mixto"):
+        if st.button("🔄 Cambiar a Docente", use_container_width=True):
+            st.session_state.modo_docente      = True
+            st.session_state.modo_seleccionado = None
+            st.session_state.chat_history      = []
             st.rerun()
 
     st.divider()
@@ -1019,7 +1123,37 @@ with st.sidebar:
         for m in st.session_state.chat_history:
             autor = "ALUMNO" if isinstance(m, HumanMessage) else "PROFESOR"
             chat_text += f"[{autor}]: {m.content}\n\n"
-        st.download_button("📄 Descargar Clase", chat_text, "clase.txt", "text/plain")
+        from docx import Document as _DocAlumno
+        from docx.shared import Pt as _PtA, RGBColor as _RGBColorA
+        import io as _ioA
+        doc_a = _DocAlumno()
+        doc_a.add_heading("Resumen de Clase — Aula Virtual IA", level=1)
+        doc_a.add_paragraph(f"Alumno: {st.session_state.get('nombre_alumno','')}  |  Nivel: {nivel_edu}")
+        doc_a.add_paragraph("")
+        for m in st.session_state.chat_history:
+            if isinstance(m, HumanMessage):
+                p = doc_a.add_paragraph()
+                run = p.add_run("👤 ALUMNO:")
+                run.bold = True
+                run.font.size = _PtA(11)
+                doc_a.add_paragraph(m.content)
+            else:
+                p = doc_a.add_paragraph()
+                run = p.add_run("🤖 TUTOR:")
+                run.bold = True
+                run.font.color.rgb = _RGBColorA(0x28, 0x35, 0x93)
+                run.font.size = _PtA(11)
+                doc_a.add_paragraph(m.content)
+            doc_a.add_paragraph("")
+        buf_a = _ioA.BytesIO()
+        doc_a.save(buf_a)
+        buf_a.seek(0)
+        st.download_button(
+            "📄 Descargar Clase en Word",
+            data=buf_a.getvalue(),
+            file_name="clase.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
 # Inyectamos el tema DESPUÉS de leer el nivel del selectbox
 inyectar_tema(nivel_edu)
@@ -1177,6 +1311,7 @@ if prompt:
             st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
+            st.rerun()
         except Exception as e:
             error_str = str(e).lower()
             # Rate limit
