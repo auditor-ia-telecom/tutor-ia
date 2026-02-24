@@ -195,35 +195,51 @@ TEMAS = {
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
-# Ocultar barra superior y forzar sidebar via localStorage
+# Ocultar barra superior y mejorar sidebar para móvil
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-[data-testid="collapsedControl"] { display: none !important; }
-[data-testid="stSidebarCollapseButton"] { display: none !important; }
+
+/* En móvil: el botón nativo de colapsar/expandir del sidebar queda visible
+   pero lo estilizamos para que sea más grande y fácil de tocar */
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(40,53,147,0.85) !important;
+    border-radius: 0 8px 8px 0 !important;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.3) !important;
+}
+[data-testid="collapsedControl"] svg {
+    fill: white !important;
+    width: 1.2rem !important;
+    height: 1.2rem !important;
+}
+[data-testid="stSidebarCollapseButton"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
 </style>
 <script>
 (function() {
-    // Borrar el estado del sidebar guardado por Streamlit en localStorage
+    // Limpiar SOLO la clave de estado del sidebar en localStorage para que
+    // Streamlit no recuerde el estado colapsado entre sesiones
     try {
-        Object.keys(localStorage).forEach(function(key) {
-            if (key.includes('sidebar') || key.includes('Sidebar')) {
-                localStorage.removeItem(key);
+        var keysToRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (key && (key.toLowerCase().includes('sidebar'))) {
+                keysToRemove.push(key);
             }
-        });
-        // Forzar clase expanded en el sidebar
-        var interval = setInterval(function() {
-            var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
-            if (sidebar) {
-                sidebar.setAttribute('aria-expanded', 'true');
-                sidebar.style.transform = 'none';
-                sidebar.style.visibility = 'visible';
-                sidebar.style.display = 'flex';
-                clearInterval(interval);
-            }
-        }, 100);
+        }
+        keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
     } catch(e) {}
 })();
 </script>
@@ -1257,39 +1273,8 @@ for m in st.session_state.chat_history:
 
 spinner_msg = TEMAS[nivel_edu]["spinner_msg"]
 
-# Botón flotante para abrir el sidebar si está cerrado
-st.markdown("""
-<style>
-.btn-menu-flotante {
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 9999;
-    background: rgba(40,53,147,0.85);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 42px;
-    height: 42px;
-    font-size: 1.2rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    text-decoration: none;
-}
-</style>
-""", unsafe_allow_html=True)
 with st.sidebar:
     pass  # asegura que el sidebar existe
-if st.button("☰", key="btn_abrir_sidebar", help="Abrir menú lateral"):
-    st.markdown("""
-    <script>
-    var btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-    if(btn) btn.click();
-    </script>
-    """, unsafe_allow_html=True)
 
 st.markdown(
     "<div style='text-align:center; font-family:Nunito,sans-serif; font-size:0.72rem; "
