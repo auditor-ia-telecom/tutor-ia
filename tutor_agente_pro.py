@@ -193,36 +193,15 @@ TEMAS = {
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN DE PÁGINA (debe ir antes de todo widget)
 # ─────────────────────────────────────────────
-st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓")
 
-# Ocultar barra superior y forzar sidebar abierto
+# Ocultar barra superior de Streamlit
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-[data-testid="collapsedControl"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
 </style>
-<script>
-// Forzar apertura del sidebar si está cerrado
-function abrirSidebar() {
-    const btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-    if (btn) {
-        const sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
-        if (sidebar) {
-            const estilo = window.parent.getComputedStyle(sidebar);
-            if (estilo.transform && estilo.transform.includes('matrix') && estilo.transform !== 'none') {
-                btn.click();
-            }
-        }
-    }
-}
-setTimeout(abrirSidebar, 500);
-</script>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
