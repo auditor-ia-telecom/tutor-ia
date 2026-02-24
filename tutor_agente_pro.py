@@ -235,6 +235,11 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# Forzar sidebar abierto en la primera carga
+if not st.session_state.get("sidebar_inicializado"):
+    st.session_state["sidebar_inicializado"] = True
+    st.rerun()
+
 # ─────────────────────────────────────────────
 # CSS DINÁMICO según nivel
 # ─────────────────────────────────────────────
