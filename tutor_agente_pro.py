@@ -193,7 +193,7 @@ TEMAS = {
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN DE PÁGINA (debe ir antes de todo widget)
 # ─────────────────────────────────────────────
-st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓")
+st.set_page_config(page_title="Tutor IA Multinivel", layout="wide", page_icon="🎓", initial_sidebar_state="expanded")
 
 # Ocultar barra superior y asegurar que el botón del sidebar siempre sea visible
 st.markdown("""
@@ -206,19 +206,9 @@ footer {visibility: hidden;}
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    background: rgba(40,53,147,0.9) !important;
-    border-radius: 0 8px 8px 0 !important;
-    color: white !important;
-    width: 32px !important;
-    height: 48px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    position: fixed !important;
-    left: 0 !important;
-    z-index: 999 !important;
-    cursor: pointer !important;
-    align-items: center !important;
-    justify-content: center !important;
+}
+section[data-testid="stSidebar"] {
+    min-width: 260px !important;
 }
 </style>
 """, unsafe_allow_html=True)
