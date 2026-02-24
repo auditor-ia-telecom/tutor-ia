@@ -195,16 +195,38 @@ TEMAS = {
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
-# Ocultar barra superior de Streamlit
+# Ocultar barra superior y forzar sidebar via localStorage
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-/* Ocultar botones << >> del sidebar */
 [data-testid="collapsedControl"] { display: none !important; }
 [data-testid="stSidebarCollapseButton"] { display: none !important; }
 </style>
+<script>
+(function() {
+    // Borrar el estado del sidebar guardado por Streamlit en localStorage
+    try {
+        Object.keys(localStorage).forEach(function(key) {
+            if (key.includes('sidebar') || key.includes('Sidebar')) {
+                localStorage.removeItem(key);
+            }
+        });
+        // Forzar clase expanded en el sidebar
+        var interval = setInterval(function() {
+            var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+            if (sidebar) {
+                sidebar.setAttribute('aria-expanded', 'true');
+                sidebar.style.transform = 'none';
+                sidebar.style.visibility = 'visible';
+                sidebar.style.display = 'flex';
+                clearInterval(interval);
+            }
+        }, 100);
+    } catch(e) {}
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
@@ -1234,6 +1256,40 @@ for m in st.session_state.chat_history:
             st.markdown(m.content)
 
 spinner_msg = TEMAS[nivel_edu]["spinner_msg"]
+
+# Botón flotante para abrir el sidebar si está cerrado
+st.markdown("""
+<style>
+.btn-menu-flotante {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 9999;
+    background: rgba(40,53,147,0.85);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    text-decoration: none;
+}
+</style>
+""", unsafe_allow_html=True)
+with st.sidebar:
+    pass  # asegura que el sidebar existe
+if st.button("☰", key="btn_abrir_sidebar", help="Abrir menú lateral"):
+    st.markdown("""
+    <script>
+    var btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+    if(btn) btn.click();
+    </script>
+    """, unsafe_allow_html=True)
 
 st.markdown(
     "<div style='text-align:center; font-family:Nunito,sans-serif; font-size:0.72rem; "
