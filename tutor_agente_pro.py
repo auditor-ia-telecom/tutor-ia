@@ -1042,6 +1042,8 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
                     st.session_state["desc_img_docente"] = describir_imagen_automaticamente(img_b64_doc_mob)
             if st.session_state.get("desc_img_docente"):
                 st.success("✅ Imagen analizada")
+                with st.expander("👁️ Ver descripción"):
+                    st.write(st.session_state["desc_img_docente"])
 
         if st.session_state.chat_history:
             st.markdown("---")
@@ -1386,7 +1388,24 @@ if not st.session_state.get("modo_docente"):
             if st.session_state.descripcion_imagen:
                 st.success("✅ Imagen analizada")
 
-        st.markdown("---")
+        st.markdown("**📷 Foto con cámara**")
+        activar_camara_mob = st.toggle("📸 Activar cámara", value=False, key="toggle_camara_mob")
+        if activar_camara_mob:
+            st.caption("Encuadrá el ejercicio y presioná el botón de abajo ↓")
+            camara_foto_mob = st.camera_input("📸 Tomar foto", key="camara_mob")
+            if camara_foto_mob is not None:
+                cam_id_mob = str(len(camara_foto_mob.getvalue()))
+                if cam_id_mob != st.session_state.get("ultima_camara_id"):
+                    st.session_state.ultima_camara_id = cam_id_mob
+                    cam_b64_mob = base64.b64encode(camara_foto_mob.getvalue()).decode("utf-8")
+                    st.session_state.camara_b64_pendiente = cam_b64_mob
+                    st.session_state.descripcion_imagen = None
+                    st.session_state.ultima_imagen_id = cam_id_mob
+                st.success("✅ Foto lista — hacé tu consulta y la analizaré")
+        else:
+            if st.session_state.get("ultima_camara_id"):
+                st.caption("📷 Foto en memoria · activá para cambiarla")
+
         st.markdown("---")
         st.markdown("**📄 Subir PDF del programa**")
         pdf_mob = st.file_uploader("PDF programa", type="pdf", key="pdf_mob")
