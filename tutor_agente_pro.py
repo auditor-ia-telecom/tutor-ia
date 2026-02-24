@@ -1043,6 +1043,43 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
             if st.session_state.get("desc_img_docente"):
                 st.success("✅ Imagen analizada")
 
+        if st.session_state.chat_history:
+            st.markdown("---")
+            doc_dm = _Document()
+            doc_dm.core_properties.title = "Consulta Docente - Asistente IA"
+            tit_dm = doc_dm.add_heading("Consulta Docente — Asistente Pedagógico IA", level=1)
+            tit_dm.runs[0].font.color.rgb = _RGBColor(0x28, 0x35, 0x93)
+            doc_dm.add_paragraph(f"Herramienta: {st.session_state.get('_mob_herramienta','General')}  |  Nivel: {st.session_state.get('_mob_nivel_doc','Secundario')}  |  Materia: {st.session_state.get('_mob_materia_doc','General')}")
+            doc_dm.add_paragraph("")
+            for m in st.session_state.chat_history:
+                if isinstance(m, HumanMessage):
+                    p = doc_dm.add_paragraph()
+                    run = p.add_run("👨‍🏫 DOCENTE:")
+                    run.bold = True
+                    run.font.size = _Pt(11)
+                    doc_dm.add_paragraph(m.content)
+                else:
+                    p = doc_dm.add_paragraph()
+                    run = p.add_run("🤖 ASISTENTE:")
+                    run.bold = True
+                    run.font.color.rgb = _RGBColor(0x28, 0x35, 0x93)
+                    run.font.size = _Pt(11)
+                    doc_dm.add_paragraph(m.content)
+                doc_dm.add_paragraph("")
+            buf_dm = _io.BytesIO()
+            doc_dm.save(buf_dm)
+            buf_dm.seek(0)
+            st.download_button(
+                "📄 Descargar en Word",
+                data=buf_dm.getvalue(),
+                file_name="consulta_docente.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key="mob_doc_download_word",
+                use_container_width=True
+            )
+        else:
+            st.caption("📄 La descarga aparece luego de la primera respuesta")
+
     st.stop()
 
 # ─────────────────────────────────────────────
