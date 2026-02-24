@@ -1,7 +1,8 @@
 streamlit
+langgraph
 langchain-groq
 langchain-core
-langgraph
-pypdf
-pillow
 groq
+pypdf
+python-docx
+
