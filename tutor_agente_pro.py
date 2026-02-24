@@ -220,6 +220,7 @@ defaults = {
     "ultima_camara_id": None,
     "camara_b64_pendiente": None,
     "solicitar_desafio": False,
+    "modo_docente": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -538,6 +539,8 @@ if not st.session_state.autenticado:
                     st.session_state.nombre_alumno    = resultado["nombre"]
                     st.session_state.token_vence      = resultado["vence"]
                     st.session_state.dias_restantes   = resultado["dias_restantes"]
+                    # Detectar modo docente por prefijo en el nombre
+                    st.session_state.modo_docente     = resultado["nombre"].startswith("DOCENTE_")
                     st.rerun()
                 else:
                     st.error(f"❌ {resultado['motivo']}")
@@ -704,6 +707,113 @@ workflow.add_node("tutor", tutor_node)
 workflow.set_entry_point("tutor")
 workflow.add_edge("tutor", END)
 app = workflow.compile()
+
+# ─────────────────────────────────────────────
+# MODO DOCENTE
+# ─────────────────────────────────────────────
+if st.session_state.get("modo_docente"):
+    nombre_doc = st.session_state.nombre_alumno.replace("DOCENTE_", "")
+    
+    # Sidebar docente
+    with st.sidebar:
+        st.markdown("<div style='font-family:Caveat,cursive;font-size:1.4rem;color:#f0e68c;text-align:center;'>👨‍🏫 Asistente Docente</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+<div style='background:rgba(39,174,96,0.25);border:1px solid rgba(39,174,96,0.5);
+     border-radius:8px;padding:8px 12px;text-align:center;'>
+  <div style='font-family:Caveat,cursive;font-size:1.1rem;color:#fff;'>✅ Prof. {nombre_doc}</div>
+  <div style='font-size:0.75rem;color:rgba(255,255,255,0.75);'>
+    Acceso hasta: {st.session_state.token_vence} · {st.session_state.dias_restantes}d restantes
+  </div>
+</div>""", unsafe_allow_html=True)
+
+        st.divider()
+        herramienta = st.selectbox("🛠️ ¿Qué necesitás?", [
+            "Planificación de clase",
+            "Diseño de evaluación",
+            "Secuencia didáctica",
+            "Actividades para el aula",
+            "Adaptación para distintos niveles",
+            "Consulta pedagógica libre",
+        ])
+        nivel_doc = st.selectbox("📚 Nivel:", ["Primario", "Secundario", "Universidad"])
+        materia_doc = st.text_input("📖 Materia:", placeholder="Ej: Matemáticas, Física...")
+
+        st.divider()
+        if st.button("🗑️ Nueva consulta", use_container_width=True):
+            st.session_state.chat_history = []
+            st.rerun()
+        if st.button("🚪 Salir", use_container_width=True):
+            for k, v in defaults.items():
+                st.session_state[k] = v
+            st.rerun()
+
+        if st.session_state.chat_history:
+            st.divider()
+            chat_text = "--- CONSULTA DOCENTE ---\n\n"
+            for m in st.session_state.chat_history:
+                autor = "DOCENTE" if isinstance(m, HumanMessage) else "ASISTENTE"
+                chat_text += f"[{autor}]: {m.content}\n\n"
+            st.download_button("📄 Descargar", chat_text, "consulta_docente.txt", "text/plain")
+
+    # Interfaz principal docente
+    st.title("👨‍🏫 Asistente Pedagógico IA")
+    st.markdown(f"""
+<div style='background:rgba(39,174,96,0.1);border-left:4px solid #27ae60;
+     border-radius:4px;padding:12px 16px;margin-bottom:20px;
+     font-family:Nunito,sans-serif;font-size:0.92rem;color:#555;'>
+    Modo docente activo · Herramienta: <b>{herramienta}</b> · Nivel: <b>{nivel_doc}</b>
+</div>""", unsafe_allow_html=True)
+
+    # Mostrar historial
+    for m in st.session_state.chat_history:
+        if isinstance(m, AIMessage):
+            with st.chat_message("assistant", avatar="🤖"):
+                st.markdown(m.content)
+        else:
+            with st.chat_message("user", avatar="👨‍🏫"):
+                st.markdown(m.content)
+
+    # Input docente
+    prompt_doc = st.chat_input("✏️ Describí lo que necesitás...")
+    if prompt_doc:
+        new_msg = HumanMessage(content=prompt_doc)
+        st.session_state.chat_history.append(new_msg)
+        with st.chat_message("user", avatar="👨‍🏫"):
+            st.markdown(prompt_doc)
+
+        sys_prompt_docente = f"""Sos un asistente pedagógico experto al servicio de un docente de {nivel_doc}.
+Tu especialidad es: {herramienta}.
+Materia: {materia_doc if materia_doc else "general"}.
+
+Respondés en español rioplatense (vos, sos, etc.) con lenguaje profesional pero accesible.
+
+SEGÚN LA HERRAMIENTA SELECCIONADA:
+- Planificación de clase: incluí objetivos, contenidos, actividades, recursos y evaluación.
+- Diseño de evaluación: incluí criterios, instrumento, escala y rúbrica si corresponde.
+- Secuencia didáctica: organizá los contenidos en pasos graduales con tiempos estimados.
+- Actividades para el aula: proponé actividades variadas, individuales y grupales.
+- Adaptación para distintos niveles: mostrá cómo adaptar el mismo contenido a distintos grupos.
+- Consulta pedagógica libre: respondé con profundidad y criterio pedagógico.
+
+Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula real."""
+
+        with st.spinner("📝 Preparando material..."):
+            try:
+                response = llm_text.invoke(
+                    [SystemMessage(content=sys_prompt_docente)] + st.session_state.chat_history
+                )
+                st.session_state.chat_history.append(response)
+                with st.chat_message("assistant", avatar="🤖"):
+                    st.markdown(response.content)
+            except Exception as e:
+                error_str = str(e).lower()
+                if "rate_limit" in error_str or "429" in error_str:
+                    st.warning("⏳ Demasiadas consultas. Esperá un minuto y reintentá.")
+                else:
+                    st.warning("⚠️ Algo salió mal. Intentá de nuevo.")
+                if st.session_state.chat_history and isinstance(st.session_state.chat_history[-1], HumanMessage):
+                    st.session_state.chat_history.pop()
+    st.stop()
 
 # ─────────────────────────────────────────────
 # INTERFAZ PRINCIPAL
