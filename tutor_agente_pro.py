@@ -193,7 +193,7 @@ TEMAS = {
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN DE PÁGINA (debe ir antes de todo widget)
 # ─────────────────────────────────────────────
-st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓")
+st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
 # Ocultar barra superior de Streamlit
 st.markdown("""
@@ -201,6 +201,9 @@ st.markdown("""
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
+/* Ocultar botones << >> del sidebar */
+[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -226,6 +229,7 @@ defaults = {
     "modo_docente": False,
     "modo_mixto": False,
     "modo_seleccionado": None,
+    "sidebar_inicializado": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
