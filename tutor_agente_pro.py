@@ -810,16 +810,15 @@ if st.session_state.get("modo_docente"):
 </div>""", unsafe_allow_html=True)
 
         st.divider()
-        herramienta = st.selectbox("🛠️ ¿Qué necesitás?", [
-            "Planificación de clase",
-            "Diseño de evaluación",
-            "Secuencia didáctica",
-            "Actividades para el aula",
-            "Adaptación para distintos niveles",
-            "Consulta pedagógica libre",
-        ])
-        nivel_doc = st.selectbox("📚 Nivel:", ["Primario", "Secundario", "Universidad"])
-        materia_doc = st.text_input("📖 Materia:", placeholder="Ej: Matemáticas, Física...")
+        _h_list = ["Planificación de clase","Diseño de evaluación","Secuencia didáctica","Actividades para el aula","Adaptación para distintos niveles","Consulta pedagógica libre"]
+        _h_def = st.session_state.get("_mob_herramienta", "Planificación de clase")
+        _h_idx = _h_list.index(_h_def) if _h_def in _h_list else 0
+        herramienta = st.selectbox("🛠️ ¿Qué necesitás?", _h_list, index=_h_idx)
+        _n_list = ["Primario", "Secundario", "Universidad"]
+        _n_def = st.session_state.get("_mob_nivel_doc", "Secundario")
+        _n_idx = _n_list.index(_n_def) if _n_def in _n_list else 1
+        nivel_doc = st.selectbox("📚 Nivel:", _n_list, index=_n_idx)
+        materia_doc = st.text_input("📖 Materia:", placeholder="Ej: Matemáticas, Física...", value=st.session_state.get("_mob_materia_doc", ""))
 
         st.divider()
         if st.button("🗑️ Nueva consulta", use_container_width=True):
@@ -979,6 +978,67 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
                     st.warning("⚠️ Algo salió mal. Intentá de nuevo.")
                 if st.session_state.chat_history and isinstance(st.session_state.chat_history[-1], HumanMessage):
                     st.session_state.chat_history.pop()
+
+    # ── MENÚ MÓVIL DOCENTE ──
+    _nombre_doc_mob = st.session_state.get("nombre_alumno", "")
+    _dias_doc_mob   = st.session_state.get("dias_restantes", 0)
+    _vence_doc_mob  = st.session_state.get("token_vence", "")
+    with st.expander(f"☰  Menú Docente  ·  {_nombre_doc_mob}  ·  {_dias_doc_mob}d restantes", expanded=False):
+        st.markdown(f"""
+        <div style='background:rgba(39,174,96,0.15); border:1px solid rgba(39,174,96,0.4);
+             border-radius:8px; padding:8px 12px; text-align:center; font-size:0.85rem; margin-bottom:8px;'>
+            👨‍🏫 <b>Prof. {_nombre_doc_mob}</b> · Acceso hasta: {_vence_doc_mob}
+        </div>
+        """, unsafe_allow_html=True)
+
+        herramienta_mob = st.selectbox("🛠️ Herramienta:", [
+            "Planificación de clase", "Diseño de evaluación", "Secuencia didáctica",
+            "Actividades para el aula", "Adaptación para distintos niveles", "Consulta pedagógica libre",
+        ], key="herramienta_mob")
+        nivel_doc_mob   = st.selectbox("📚 Nivel:", ["Primario", "Secundario", "Universidad"], key="nivel_doc_mob")
+        materia_doc_mob = st.text_input("📖 Materia:", placeholder="Ej: Matemáticas...", key="materia_mob")
+
+        # Sincronizar con las variables usadas abajo
+        herramienta = herramienta_mob
+        nivel_doc   = nivel_doc_mob
+        materia_doc = materia_doc_mob
+
+        st.markdown("---")
+        if st.button("🗑️ Nueva consulta", key="doc_mob_reiniciar", use_container_width=True):
+            st.session_state.chat_history = []
+            st.rerun()
+        if st.session_state.get("modo_mixto"):
+            if st.button("🔄 Cambiar a Alumno", key="doc_mob_alumno", use_container_width=True):
+                st.session_state.modo_docente      = False
+                st.session_state.modo_seleccionado = None
+                st.session_state.chat_history      = []
+                st.rerun()
+        if st.button("🚪 Salir", key="doc_mob_salir", use_container_width=True):
+            for k, v in defaults.items():
+                st.session_state[k] = v
+            st.rerun()
+
+        st.markdown("---")
+        st.markdown("**📄 Cargar material**")
+        pdf_doc_mob = st.file_uploader("PDF (programa, material)", type="pdf", key="pdf_doc_mob")
+        img_doc_mob = st.file_uploader("Imagen (foto, ejercicio)", type=["jpg","png","jpeg"], key="img_doc_mob")
+        if pdf_doc_mob:
+            from pypdf import PdfReader as _PdfReaderDocMob
+            texto_pdf_doc_mob = "".join([p.extract_text() or "" for p in _PdfReaderDocMob(pdf_doc_mob).pages])
+            st.session_state["contexto_docente_pdf"] = texto_pdf_doc_mob
+            st.success("✅ PDF cargado")
+        if img_doc_mob:
+            img_id_doc_mob = f"{img_doc_mob.name}_{img_doc_mob.size}"
+            if img_id_doc_mob != st.session_state.get("ultima_img_docente_id"):
+                st.session_state.ultima_img_docente_id = img_id_doc_mob
+                st.session_state["desc_img_docente"] = None
+                with st.spinner("🔍 Analizando imagen..."):
+                    img_b64_doc_mob = base64.b64encode(img_doc_mob.read()).decode("utf-8")
+                    img_doc_mob.seek(0)
+                    st.session_state["desc_img_docente"] = describir_imagen_automaticamente(img_b64_doc_mob)
+            if st.session_state.get("desc_img_docente"):
+                st.success("✅ Imagen analizada")
+
     st.stop()
 
 # ─────────────────────────────────────────────
@@ -1281,6 +1341,30 @@ with st.expander(f"☰  Menú  ·  {_nombre_mob}  ·  {_dias_mob}d restantes", e
                 st.session_state.descripcion_imagen = describir_imagen_automaticamente(img_b64_mob)
         if st.session_state.descripcion_imagen:
             st.success("✅ Imagen analizada")
+
+    st.markdown("---")
+    st.markdown("---")
+    st.markdown("**📄 Subir PDF del programa**")
+    pdf_mob = st.file_uploader("PDF programa", type="pdf", key="pdf_mob")
+    if pdf_mob:
+        from pypdf import PdfReader as _PdfReaderMob
+        contexto_mob = "".join([p.extract_text() or "" for p in _PdfReaderMob(pdf_mob).pages])
+        st.session_state["contexto_pdf_mob"] = contexto_mob
+        st.success("✅ PDF cargado")
+
+    st.markdown("---")
+    st.markdown("**🔊 Escuchar última respuesta**")
+    ultima_resp_mob = st.session_state.get("ultima_respuesta_tts")
+    if ultima_resp_mob:
+        if st.button("▶️ Reproducir", use_container_width=True, key="btn_tts_mob"):
+            with st.spinner("🔊 Generando audio..."):
+                audio_bytes_tts_mob, error_tts_mob = texto_a_voz(ultima_resp_mob)
+            if audio_bytes_tts_mob:
+                st.audio(audio_bytes_tts_mob, format="audio/wav", autoplay=True)
+            else:
+                st.warning(f"No se pudo generar el audio. Error: {error_tts_mob}")
+    else:
+        st.caption("Esperá la primera respuesta del tutor")
 
     st.markdown("---")
     if st.button("🎯 ¡Quiero ser evaluado!", key="mob_desafio", use_container_width=True):
