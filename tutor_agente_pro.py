@@ -1193,7 +1193,6 @@ _nivel_idx   = ["Primario","Secundario","Universidad"].index(nivel_edu)
 
 st.markdown(f"""
 <style>
-/* Barra superior móvil */
 #mob-bar {{
     display: none;
     position: sticky;
@@ -1206,174 +1205,202 @@ st.markdown(f"""
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    -webkit-user-select: none;
+    user-select: none;
 }}
 #mob-bar .mob-title {{
     font-family: 'Caveat', cursive;
     font-size: 1.2rem;
     color: #f0e68c;
     flex: 1;
+    pointer-events: none;
 }}
 #mob-toggle {{
-    background: rgba(255,255,255,0.2);
-    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.25);
+    border: 2px solid rgba(255,255,255,0.6);
     border-radius: 8px;
     color: white;
-    font-size: 1.4rem;
-    padding: 4px 10px;
+    font-size: 1.3rem;
+    padding: 6px 14px;
     cursor: pointer;
     line-height: 1;
+    -webkit-tap-highlight-color: rgba(255,255,255,0.3);
+    touch-action: manipulation;
 }}
-#mob-toggle:active {{ background: rgba(255,255,255,0.35); }}
-
-/* Panel desplegable */
 #mob-panel {{
     display: none;
     background: {_t['sidebar_bg']};
     border-bottom: 3px solid {_t['sidebar_borde']};
-    padding: 12px 16px 16px;
+    padding: 14px 16px 18px;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     z-index: 8999;
 }}
-#mob-panel.open {{ display: flex !important; }}
-
-/* Info alumno */
 .mob-info {{
     background: rgba(39,174,96,0.25);
     border: 1px solid rgba(39,174,96,0.5);
     border-radius: 8px;
-    padding: 7px 12px;
+    padding: 8px 12px;
     text-align: center;
     color: white;
     font-family: 'Nunito', sans-serif;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
 }}
-.mob-info b {{ font-size: 0.95rem; }}
-
-/* Selector de nivel */
 .mob-label {{
     font-family: 'Caveat', cursive;
     font-size: 1.05rem;
     color: #f0e68c;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }}
 #mob-nivel {{
     width: 100%;
-    padding: 7px 10px;
+    padding: 8px 10px;
     border-radius: 8px;
     border: 2px solid rgba(255,255,255,0.6);
     background: rgba(255,255,255,0.18);
     color: white;
-    font-family: 'Nunito', sans-serif;
     font-size: 0.95rem;
     font-weight: 600;
+    touch-action: manipulation;
 }}
 #mob-nivel option {{ color: #222; background: white; }}
-
-/* Botones de acción */
-.mob-btns {{
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}}
+.mob-btns {{ display: flex; gap: 8px; }}
 .mob-btn {{
     flex: 1;
-    min-width: 100px;
-    padding: 8px 6px;
+    padding: 10px 6px;
     border-radius: 8px;
     border: none;
     font-family: 'Caveat', cursive;
     font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
-    text-align: center;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.2);
+    touch-action: manipulation;
 }}
 .mob-btn-reiniciar {{ background: #e67e22; color: white; }}
 .mob-btn-salir     {{ background: #c0392b; color: white; }}
-.mob-btn-desafio   {{ background: #27ae60; color: white; width: 100%; }}
-.mob-btn-docente   {{ background: #8e44ad; color: white; width: 100%; }}
-
-/* Solo mostrar en móvil */
+.mob-btn-wide      {{ width: 100%; padding: 10px; border-radius: 8px; border: none;
+                      font-family: 'Caveat', cursive; font-size: 1rem; font-weight: 700;
+                      cursor: pointer; touch-action: manipulation; }}
+.mob-btn-desafio   {{ background: #27ae60; color: white; }}
+.mob-btn-docente   {{ background: #8e44ad; color: white; }}
 @media (max-width: 767px) {{
-    #mob-bar   {{ display: flex !important; }}
+    #mob-bar {{ display: flex !important; }}
 }}
 </style>
 
 <div id="mob-bar">
-    <div class="mob-title">🏫 Aula Virtual</div>
-    <button id="mob-toggle" onclick="document.getElementById('mob-panel').classList.toggle('open')">☰ Menú</button>
+    <span class="mob-title">🏫 Aula Virtual</span>
+    <button id="mob-toggle">☰ Menú</button>
 </div>
 
 <div id="mob-panel">
     <div class="mob-info">
         <b>✅ {_nombre_mob}</b><br>
-        Acceso hasta: {_vence_mob} · {_dias_mob}d restantes
+        Acceso: {_vence_mob} · {_dias_mob}d restantes
     </div>
-
     <div>
-        <div class="mob-label">📚 Nivel del Alumno:</div>
-        <select id="mob-nivel" onchange="cambiarNivel(this.value)">
+        <div class="mob-label">📚 Nivel:</div>
+        <select id="mob-nivel">
             <option value="Primario"    {'selected' if nivel_edu=='Primario'    else ''}>🎨 Primario</option>
             <option value="Secundario"  {'selected' if nivel_edu=='Secundario'  else ''}>📱 Secundario</option>
             <option value="Universidad" {'selected' if nivel_edu=='Universidad' else ''}>🎓 Universidad</option>
         </select>
     </div>
-
     <div class="mob-btns">
-        <button class="mob-btn mob-btn-reiniciar" onclick="accionMob('reiniciar')">🗑️ Reiniciar</button>
-        <button class="mob-btn mob-btn-salir"     onclick="accionMob('salir')">🚪 Salir</button>
+        <button class="mob-btn mob-btn-reiniciar" id="mob-btn-reiniciar">🗑️ Reiniciar</button>
+        <button class="mob-btn mob-btn-salir"     id="mob-btn-salir">🚪 Salir</button>
     </div>
-    <button class="mob-btn mob-btn-desafio" onclick="accionMob('desafio')">🎯 ¡Quiero ser evaluado!</button>
-    {"<button class='mob-btn mob-btn-docente' onclick='accionMob(\"docente\")'>🔄 Cambiar a Docente</button>" if st.session_state.get('modo_mixto') else ""}
+    <button class="mob-btn-wide mob-btn-desafio" id="mob-btn-desafio">🎯 ¡Quiero ser evaluado!</button>
+    {'<button class="mob-btn-wide mob-btn-docente" id="mob-btn-docente">🔄 Cambiar a Docente</button>' if st.session_state.get('modo_mixto') else ''}
 </div>
 
 <script>
-// Cerrar panel al tocar fuera
-document.addEventListener('click', function(e) {{
-    var panel = document.getElementById('mob-panel');
-    var bar   = document.getElementById('mob-bar');
-    if (panel && bar && !bar.contains(e.target) && !panel.contains(e.target)) {{
-        panel.classList.remove('open');
-    }}
-}});
+(function() {{
+    // Esperamos que el DOM esté listo
+    function init() {{
+        var toggle = document.getElementById('mob-toggle');
+        var panel  = document.getElementById('mob-panel');
+        if (!toggle || !panel) {{ setTimeout(init, 100); return; }}
 
-function cambiarNivel(val) {{
-    // Buscar el selectbox de Streamlit y cambiarlo
-    var selects = window.parent.document.querySelectorAll('select');
-    for (var i = 0; i < selects.length; i++) {{
-        var opts = selects[i].options;
-        for (var j = 0; j < opts.length; j++) {{
-            if (opts[j].value === val || opts[j].text.includes(val)) {{
-                selects[i].value = opts[j].value;
-                selects[i].dispatchEvent(new Event('change', {{bubbles: true}}));
-                break;
+        // Toggle del panel: usamos touchend para móvil y click para PC
+        function togglePanel(e) {{
+            e.preventDefault();
+            e.stopPropagation();
+            var isOpen = panel.style.display === 'flex';
+            panel.style.display = isOpen ? 'none' : 'flex';
+            panel.style.flexDirection = 'column';
+        }}
+        toggle.addEventListener('touchend', togglePanel, {{passive: false}});
+        toggle.addEventListener('click',    togglePanel);
+
+        // Cerrar panel al tocar fuera
+        document.addEventListener('touchend', function(e) {{
+            var bar = document.getElementById('mob-bar');
+            if (panel.style.display === 'flex' && bar &&
+                !bar.contains(e.target) && !panel.contains(e.target)) {{
+                panel.style.display = 'none';
+            }}
+        }}, {{passive: true}});
+
+        // Cambiar nivel
+        var sel = document.getElementById('mob-nivel');
+        if (sel) {{
+            sel.addEventListener('change', function() {{
+                var val = this.value;
+                // Buscar el select de Streamlit en el mismo documento (no parent, está en el mismo iframe)
+                var allSelects = document.querySelectorAll('select');
+                for (var i = 0; i < allSelects.length; i++) {{
+                    if (allSelects[i].id === 'mob-nivel') continue;
+                    var opts = allSelects[i].options;
+                    for (var j = 0; j < opts.length; j++) {{
+                        if (opts[j].text.includes(val)) {{
+                            allSelects[i].value = opts[j].value;
+                            allSelects[i].dispatchEvent(new Event('change', {{bubbles: true}}));
+                            break;
+                        }}
+                    }}
+                }}
+                panel.style.display = 'none';
+            }});
+        }}
+
+        // Función genérica para clickear botones de Streamlit por texto
+        function clickStBtn(palabras) {{
+            var btns = document.querySelectorAll('button');
+            for (var i = 0; i < btns.length; i++) {{
+                if (btns[i].id && btns[i].id.startsWith('mob-')) continue;
+                var txt = btns[i].innerText || btns[i].textContent || '';
+                for (var j = 0; j < palabras.length; j++) {{
+                    if (txt.indexOf(palabras[j]) >= 0) {{
+                        btns[i].click();
+                        panel.style.display = 'none';
+                        return;
+                    }}
+                }}
             }}
         }}
-    }}
-    document.getElementById('mob-panel').classList.remove('open');
-}}
 
-function accionMob(accion) {{
-    // Buscar botones de Streamlit por su texto y clickearlos
-    var textos = {{
-        'reiniciar': ['Reiniciar', '🗑️'],
-        'salir':     ['Salir', '🚪'],
-        'desafio':   ['evaluado', 'Desafío', 'DESAFÍO'],
-        'docente':   ['Docente', 'docente'],
-    }};
-    var palabras = textos[accion] || [];
-    var btns = window.parent.document.querySelectorAll('button');
-    for (var i = 0; i < btns.length; i++) {{
-        var txt = btns[i].innerText || btns[i].textContent;
-        for (var j = 0; j < palabras.length; j++) {{
-            if (txt.includes(palabras[j])) {{
-                btns[i].click();
-                document.getElementById('mob-panel').classList.remove('open');
-                return;
-            }}
+        function bindBtn(id, palabras) {{
+            var b = document.getElementById(id);
+            if (!b) return;
+            function handler(e) {{ e.preventDefault(); e.stopPropagation(); clickStBtn(palabras); }}
+            b.addEventListener('touchend', handler, {{passive: false}});
+            b.addEventListener('click',    handler);
         }}
+
+        bindBtn('mob-btn-reiniciar', ['Reiniciar']);
+        bindBtn('mob-btn-salir',     ['Salir']);
+        bindBtn('mob-btn-desafio',   ['evaluado', 'Desaf']);
+        bindBtn('mob-btn-docente',   ['Docente']);
     }}
-}}
+
+    if (document.readyState === 'loading') {{
+        document.addEventListener('DOMContentLoaded', init);
+    }} else {{
+        init();
+    }}
+}})();
 </script>
 """, unsafe_allow_html=True)
 
