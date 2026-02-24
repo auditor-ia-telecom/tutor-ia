@@ -819,6 +819,10 @@ if st.session_state.get("modo_docente"):
         _n_idx = _n_list.index(_n_def) if _n_def in _n_list else 1
         nivel_doc = st.selectbox("📚 Nivel:", _n_list, index=_n_idx)
         materia_doc = st.text_input("📖 Materia:", placeholder="Ej: Matemáticas, Física...", value=st.session_state.get("_mob_materia_doc", ""))
+        # Guardar en session_state para sincronizar con menú móvil
+        st.session_state["_mob_herramienta"] = herramienta
+        st.session_state["_mob_nivel_doc"]   = nivel_doc
+        st.session_state["_mob_materia_doc"] = materia_doc
 
         st.divider()
         if st.button("🗑️ Nueva consulta", use_container_width=True):
@@ -998,10 +1002,10 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
         nivel_doc_mob   = st.selectbox("📚 Nivel:", ["Primario", "Secundario", "Universidad"], key="nivel_doc_mob")
         materia_doc_mob = st.text_input("📖 Materia:", placeholder="Ej: Matemáticas...", key="materia_mob")
 
-        # Sincronizar con las variables usadas abajo
-        herramienta = herramienta_mob
-        nivel_doc   = nivel_doc_mob
-        materia_doc = materia_doc_mob
+        # Guardar selecciones para que el sidebar las tome en el próximo rerun
+        st.session_state["_mob_herramienta"] = herramienta_mob
+        st.session_state["_mob_nivel_doc"]   = nivel_doc_mob
+        st.session_state["_mob_materia_doc"] = materia_doc_mob
 
         st.markdown("---")
         if st.button("🗑️ Nueva consulta", key="doc_mob_reiniciar", use_container_width=True):
@@ -1088,17 +1092,20 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    nivel_edu = st.selectbox(
-        "📚 Nivel del Alumno:",
-        ["Primario", "Secundario", "Universidad"],
-        index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual)
-    )
-    # Detectamos cambio de nivel y reiniciamos chat si cambió
-    if nivel_edu != st.session_state.nivel_actual:
-        st.session_state.nivel_actual = nivel_edu
-        st.session_state.chat_history = []
-        st.session_state.contador = 0
-        st.rerun()
+    if not st.session_state.get("modo_docente"):
+        nivel_edu = st.selectbox(
+            "📚 Nivel del Alumno:",
+            ["Primario", "Secundario", "Universidad"],
+            index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual)
+        )
+        # Detectamos cambio de nivel y reiniciamos chat si cambió
+        if nivel_edu != st.session_state.nivel_actual:
+            st.session_state.nivel_actual = nivel_edu
+            st.session_state.chat_history = []
+            st.session_state.contador = 0
+            st.rerun()
+    else:
+        nivel_edu = st.session_state.nivel_actual
 
     st.divider()
 
@@ -1245,131 +1252,131 @@ with st.sidebar:
 inyectar_tema(nivel_edu)
 
 # ── MENÚ MÓVIL: reemplaza el sidebar en pantallas pequeñas ──
-# Ocultamos el sidebar en móvil via CSS (ya está en el bloque superior)
-# Usamos st.expander nativo de Streamlit — funciona en todos los dispositivos
+# Solo para modo alumno — el modo docente tiene su propio expander
+if not st.session_state.get("modo_docente"):
 
-_nombre_mob = st.session_state.get("nombre_alumno", "")
-_vence_mob  = st.session_state.get("token_vence", "")
-_dias_mob   = st.session_state.get("dias_restantes", 0)
+    _nombre_mob = st.session_state.get("nombre_alumno", "")
+    _vence_mob  = st.session_state.get("token_vence", "")
+    _dias_mob   = st.session_state.get("dias_restantes", 0)
 
-# Ocultar en PC, mostrar en móvil usando CSS sobre el expander
-st.markdown("""
-<style>
-/* En PC ocultamos el expander-menú (el sidebar ya tiene todo) */
-@media (min-width: 768px) {
-    div[data-testid="stExpander"]:has(#mob-menu-anchor) {
-        display: none !important;
+    # Ocultar en PC, mostrar en móvil usando CSS sobre el expander
+    st.markdown("""
+    <style>
+    /* En PC ocultamos el expander-menú (el sidebar ya tiene todo) */
+    @media (min-width: 768px) {
+        div[data-testid="stExpander"]:has(#mob-menu-anchor) {
+            display: none !important;
+        }
     }
-}
-</style>
-<span id="mob-menu-anchor" style="display:none"></span>
-""", unsafe_allow_html=True)
-
-with st.expander(f"☰  Menú  ·  {_nombre_mob}  ·  {_dias_mob}d restantes", expanded=False):
-    st.markdown(f"""
-    <div style='background:rgba(39,174,96,0.15); border:1px solid rgba(39,174,96,0.4);
-         border-radius:8px; padding:8px 12px; text-align:center;
-         font-size:0.85rem; margin-bottom:8px;'>
-        ✅ <b>{_nombre_mob}</b> · Acceso hasta: {_vence_mob}
-    </div>
+    </style>
+    <span id="mob-menu-anchor" style="display:none"></span>
     """, unsafe_allow_html=True)
 
-    nivel_mob = st.selectbox(
-        "📚 Nivel:",
-        ["Primario", "Secundario", "Universidad"],
-        index=["Primario","Secundario","Universidad"].index(nivel_edu),
-        key="nivel_mob_select"
-    )
-    if nivel_mob != st.session_state.nivel_actual:
-        st.session_state.nivel_actual = nivel_mob
-        st.session_state.chat_history = []
-        st.session_state.contador = 0
-        st.rerun()
+    with st.expander(f"☰  Menú  ·  {_nombre_mob}  ·  {_dias_mob}d restantes", expanded=False):
+        st.markdown(f"""
+        <div style='background:rgba(39,174,96,0.15); border:1px solid rgba(39,174,96,0.4);
+             border-radius:8px; padding:8px 12px; text-align:center;
+             font-size:0.85rem; margin-bottom:8px;'>
+            ✅ <b>{_nombre_mob}</b> · Acceso hasta: {_vence_mob}
+        </div>
+        """, unsafe_allow_html=True)
 
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
-        if st.button("🗑️ Reiniciar", key="mob_reiniciar", use_container_width=True):
+        nivel_mob = st.selectbox(
+            "📚 Nivel:",
+            ["Primario", "Secundario", "Universidad"],
+            index=["Primario","Secundario","Universidad"].index(nivel_edu),
+            key="nivel_mob_select"
+        )
+        if nivel_mob != st.session_state.nivel_actual:
+            st.session_state.nivel_actual = nivel_mob
             st.session_state.chat_history = []
             st.session_state.contador = 0
-            st.session_state.ultima_imagen_id = None
-            st.session_state.descripcion_imagen = None
-            st.rerun()
-    with col_m2:
-        if st.button("🚪 Salir", key="mob_salir", use_container_width=True):
-            for k, v in defaults.items():
-                st.session_state[k] = v
-            st.session_state.nombre_alumno  = ""
-            st.session_state.token_vence    = ""
-            st.session_state.dias_restantes = 0
             st.rerun()
 
-    if st.session_state.get("modo_mixto"):
-        if st.button("🔄 Cambiar a Docente", key="mob_docente", use_container_width=True):
-            st.session_state.modo_docente      = True
-            st.session_state.modo_seleccionado = None
-            st.session_state.chat_history      = []
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            if st.button("🗑️ Reiniciar", key="mob_reiniciar", use_container_width=True):
+                st.session_state.chat_history = []
+                st.session_state.contador = 0
+                st.session_state.ultima_imagen_id = None
+                st.session_state.descripcion_imagen = None
+                st.rerun()
+        with col_m2:
+            if st.button("🚪 Salir", key="mob_salir", use_container_width=True):
+                for k, v in defaults.items():
+                    st.session_state[k] = v
+                st.session_state.nombre_alumno  = ""
+                st.session_state.token_vence    = ""
+                st.session_state.dias_restantes = 0
+                st.rerun()
+
+        if st.session_state.get("modo_mixto"):
+            if st.button("🔄 Cambiar a Docente", key="mob_docente", use_container_width=True):
+                st.session_state.modo_docente      = True
+                st.session_state.modo_seleccionado = None
+                st.session_state.chat_history      = []
+                st.rerun()
+
+        st.markdown("---")
+        st.markdown("**🎙️ Consulta por voz**")
+        st.caption("1️⃣ Grabá  ·  2️⃣ Detené  ·  3️⃣ Se envía solo")
+        audio_mob = st.audio_input(" ", key="audio_mob", label_visibility="collapsed")
+        if audio_mob is not None:
+            audio_bytes_mob = audio_mob.getvalue()
+            audio_id_mob = str(len(audio_bytes_mob))
+            if audio_id_mob != st.session_state.get("ultimo_audio_id"):
+                st.session_state.ultimo_audio_id = audio_id_mob
+                with st.spinner("🎙️ Transcribiendo..."):
+                    texto_mob = transcribir_audio(audio_bytes_mob)
+                if texto_mob.startswith("ERROR_AUDIO:"):
+                    st.warning("No se pudo transcribir. Escribí tu consulta.")
+                else:
+                    st.session_state.prompt_desde_audio = texto_mob
+                    st.success(f'✅ "{texto_mob}"')
+
+        st.markdown("---")
+        st.markdown("**🖼️ Subir imagen / foto**")
+        img_mob = st.file_uploader("Foto ejercicio", type=["jpg","png","jpeg"], key="img_mob")
+        if img_mob:
+            imagen_id_mob = f"{img_mob.name}_{img_mob.size}"
+            if imagen_id_mob != st.session_state.ultima_imagen_id:
+                st.session_state.ultima_imagen_id = imagen_id_mob
+                st.session_state.descripcion_imagen = None
+                with st.spinner("🔍 Analizando imagen..."):
+                    img_b64_mob = base64.b64encode(img_mob.read()).decode("utf-8")
+                    img_mob.seek(0)
+                    st.session_state.descripcion_imagen = describir_imagen_automaticamente(img_b64_mob)
+            if st.session_state.descripcion_imagen:
+                st.success("✅ Imagen analizada")
+
+        st.markdown("---")
+        st.markdown("---")
+        st.markdown("**📄 Subir PDF del programa**")
+        pdf_mob = st.file_uploader("PDF programa", type="pdf", key="pdf_mob")
+        if pdf_mob:
+            from pypdf import PdfReader as _PdfReaderMob
+            contexto_mob = "".join([p.extract_text() or "" for p in _PdfReaderMob(pdf_mob).pages])
+            st.session_state["contexto_pdf_mob"] = contexto_mob
+            st.success("✅ PDF cargado")
+
+        st.markdown("---")
+        st.markdown("**🔊 Escuchar última respuesta**")
+        ultima_resp_mob = st.session_state.get("ultima_respuesta_tts")
+        if ultima_resp_mob:
+            if st.button("▶️ Reproducir", use_container_width=True, key="btn_tts_mob"):
+                with st.spinner("🔊 Generando audio..."):
+                    audio_bytes_tts_mob, error_tts_mob = texto_a_voz(ultima_resp_mob)
+                if audio_bytes_tts_mob:
+                    st.audio(audio_bytes_tts_mob, format="audio/wav", autoplay=True)
+                else:
+                    st.warning(f"No se pudo generar el audio. Error: {error_tts_mob}")
+        else:
+            st.caption("Esperá la primera respuesta del tutor")
+
+        st.markdown("---")
+        if st.button("🎯 ¡Quiero ser evaluado!", key="mob_desafio", use_container_width=True):
+            st.session_state.solicitar_desafio = True
             st.rerun()
-
-    st.markdown("---")
-    st.markdown("**🎙️ Consulta por voz**")
-    st.caption("1️⃣ Grabá  ·  2️⃣ Detené  ·  3️⃣ Se envía solo")
-    audio_mob = st.audio_input(" ", key="audio_mob", label_visibility="collapsed")
-    if audio_mob is not None:
-        audio_bytes_mob = audio_mob.getvalue()
-        audio_id_mob = str(len(audio_bytes_mob))
-        if audio_id_mob != st.session_state.get("ultimo_audio_id"):
-            st.session_state.ultimo_audio_id = audio_id_mob
-            with st.spinner("🎙️ Transcribiendo..."):
-                texto_mob = transcribir_audio(audio_bytes_mob)
-            if texto_mob.startswith("ERROR_AUDIO:"):
-                st.warning("No se pudo transcribir. Escribí tu consulta.")
-            else:
-                st.session_state.prompt_desde_audio = texto_mob
-                st.success(f'✅ "{texto_mob}"')
-
-    st.markdown("---")
-    st.markdown("**🖼️ Subir imagen / foto**")
-    img_mob = st.file_uploader("Foto ejercicio", type=["jpg","png","jpeg"], key="img_mob")
-    if img_mob:
-        imagen_id_mob = f"{img_mob.name}_{img_mob.size}"
-        if imagen_id_mob != st.session_state.ultima_imagen_id:
-            st.session_state.ultima_imagen_id = imagen_id_mob
-            st.session_state.descripcion_imagen = None
-            with st.spinner("🔍 Analizando imagen..."):
-                img_b64_mob = base64.b64encode(img_mob.read()).decode("utf-8")
-                img_mob.seek(0)
-                st.session_state.descripcion_imagen = describir_imagen_automaticamente(img_b64_mob)
-        if st.session_state.descripcion_imagen:
-            st.success("✅ Imagen analizada")
-
-    st.markdown("---")
-    st.markdown("---")
-    st.markdown("**📄 Subir PDF del programa**")
-    pdf_mob = st.file_uploader("PDF programa", type="pdf", key="pdf_mob")
-    if pdf_mob:
-        from pypdf import PdfReader as _PdfReaderMob
-        contexto_mob = "".join([p.extract_text() or "" for p in _PdfReaderMob(pdf_mob).pages])
-        st.session_state["contexto_pdf_mob"] = contexto_mob
-        st.success("✅ PDF cargado")
-
-    st.markdown("---")
-    st.markdown("**🔊 Escuchar última respuesta**")
-    ultima_resp_mob = st.session_state.get("ultima_respuesta_tts")
-    if ultima_resp_mob:
-        if st.button("▶️ Reproducir", use_container_width=True, key="btn_tts_mob"):
-            with st.spinner("🔊 Generando audio..."):
-                audio_bytes_tts_mob, error_tts_mob = texto_a_voz(ultima_resp_mob)
-            if audio_bytes_tts_mob:
-                st.audio(audio_bytes_tts_mob, format="audio/wav", autoplay=True)
-            else:
-                st.warning(f"No se pudo generar el audio. Error: {error_tts_mob}")
-    else:
-        st.caption("Esperá la primera respuesta del tutor")
-
-    st.markdown("---")
-    if st.button("🎯 ¡Quiero ser evaluado!", key="mob_desafio", use_container_width=True):
-        st.session_state.solicitar_desafio = True
-        st.rerun()
 
 
 # Títulos según nivel
