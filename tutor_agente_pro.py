@@ -193,24 +193,36 @@ TEMAS = {
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN DE PÁGINA (debe ir antes de todo widget)
 # ─────────────────────────────────────────────
-st.set_page_config(page_title="Tutor IA Multinivel", layout="wide", page_icon="🎓", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
-# Ocultar barra superior y asegurar que el botón del sidebar siempre sea visible
+# Ocultar barra superior y forzar sidebar abierto
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-/* Botón para abrir/cerrar sidebar siempre visible */
 [data-testid="collapsedControl"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
 }
-section[data-testid="stSidebar"] {
-    min-width: 260px !important;
-}
 </style>
+<script>
+// Forzar apertura del sidebar si está cerrado
+function abrirSidebar() {
+    const btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+    if (btn) {
+        const sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+        if (sidebar) {
+            const estilo = window.parent.getComputedStyle(sidebar);
+            if (estilo.transform && estilo.transform.includes('matrix') && estilo.transform !== 'none') {
+                btn.click();
+            }
+        }
+    }
+}
+setTimeout(abrirSidebar, 500);
+</script>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
