@@ -195,77 +195,33 @@ TEMAS = {
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
-# Ocultar barra superior y arreglar sidebar en móvil
+# Ocultar barra superior. En móvil ocultamos el sidebar nativo y mostramos un menú propio.
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-</style>
-<script>
-(function() {
-    // El botón collapsedControl vive en window.parent, no en este iframe.
-    // Lo buscamos y lo forzamos visible con estilo propio.
-    function fixSidebarButton() {
-        try {
-            var parentDoc = window.parent.document;
 
-            // Botón para ABRIR el sidebar cuando está cerrado (collapsedControl)
-            var btnAbrir = parentDoc.querySelector('[data-testid="collapsedControl"]');
-            if (btnAbrir) {
-                btnAbrir.style.setProperty('display', 'flex', 'important');
-                btnAbrir.style.setProperty('visibility', 'visible', 'important');
-                btnAbrir.style.setProperty('opacity', '1', 'important');
-                btnAbrir.style.setProperty('position', 'fixed', 'important');
-                btnAbrir.style.setProperty('top', '10px', 'important');
-                btnAbrir.style.setProperty('left', '10px', 'important');
-                btnAbrir.style.setProperty('z-index', '999999', 'important');
-                btnAbrir.style.setProperty('width', '44px', 'important');
-                btnAbrir.style.setProperty('height', '44px', 'important');
-                btnAbrir.style.setProperty('background', 'rgba(40,53,147,0.90)', 'important');
-                btnAbrir.style.setProperty('border-radius', '50%', 'important');
-                btnAbrir.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.4)', 'important');
-                btnAbrir.style.setProperty('align-items', 'center', 'important');
-                btnAbrir.style.setProperty('justify-content', 'center', 'important');
-                btnAbrir.style.setProperty('cursor', 'pointer', 'important');
-                var svg = btnAbrir.querySelector('svg');
-                if (svg) {
-                    svg.style.setProperty('fill', 'white', 'important');
-                    svg.style.setProperty('width', '22px', 'important');
-                    svg.style.setProperty('height', '22px', 'important');
-                }
-            }
-
-            // Botón para CERRAR el sidebar (stSidebarCollapseButton)
-            var btnCerrar = parentDoc.querySelector('[data-testid="stSidebarCollapseButton"]');
-            if (btnCerrar) {
-                btnCerrar.style.setProperty('display', 'flex', 'important');
-                btnCerrar.style.setProperty('visibility', 'visible', 'important');
-                btnCerrar.style.setProperty('opacity', '1', 'important');
-            }
-
-            // Limpiar localStorage para que no recuerde el estado colapsado
-            var keysToRemove = [];
-            for (var i = 0; i < window.parent.localStorage.length; i++) {
-                var key = window.parent.localStorage.key(i);
-                if (key && key.toLowerCase().includes('sidebar')) {
-                    keysToRemove.push(key);
-                }
-            }
-            keysToRemove.forEach(function(k) { window.parent.localStorage.removeItem(k); });
-
-        } catch(e) {}
+/* ── PC: sidebar fijo, visible, normal ── */
+@media (min-width: 768px) {
+    [data-testid="stSidebar"] {
+        display: flex !important;
+        visibility: visible !important;
+        transform: none !important;
+        position: relative !important;
     }
+    [data-testid="collapsedControl"]      { display: none !important; }
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
+    #mobile-menu-bar { display: none !important; }
+}
 
-    fixSidebarButton();
-    setInterval(fixSidebarButton, 500);
-
-    try {
-        var observer = new MutationObserver(fixSidebarButton);
-        observer.observe(window.parent.document.body, { childList: true, subtree: true, attributes: true });
-    } catch(e) {}
-})();
-</script>
+/* ── MÓVIL: ocultar sidebar nativo completamente ── */
+@media (max-width: 767px) {
+    [data-testid="stSidebar"]             { display: none !important; }
+    [data-testid="collapsedControl"]      { display: none !important; }
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
+}
+</style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
@@ -1227,6 +1183,199 @@ with st.sidebar:
 
 # Inyectamos el tema DESPUÉS de leer el nivel del selectbox
 inyectar_tema(nivel_edu)
+
+# ── MENÚ MÓVIL: visible solo en pantallas pequeñas ──
+_t = TEMAS[nivel_edu]
+_nombre_mob  = st.session_state.get("nombre_alumno", "")
+_vence_mob   = st.session_state.get("token_vence", "")
+_dias_mob    = st.session_state.get("dias_restantes", 0)
+_nivel_idx   = ["Primario","Secundario","Universidad"].index(nivel_edu)
+
+st.markdown(f"""
+<style>
+/* Barra superior móvil */
+#mob-bar {{
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 9000;
+    background: {_t['sidebar_bg']};
+    border-bottom: 3px solid {_t['sidebar_borde']};
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    padding: 8px 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}}
+#mob-bar .mob-title {{
+    font-family: 'Caveat', cursive;
+    font-size: 1.2rem;
+    color: #f0e68c;
+    flex: 1;
+}}
+#mob-toggle {{
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 8px;
+    color: white;
+    font-size: 1.4rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    line-height: 1;
+}}
+#mob-toggle:active {{ background: rgba(255,255,255,0.35); }}
+
+/* Panel desplegable */
+#mob-panel {{
+    display: none;
+    background: {_t['sidebar_bg']};
+    border-bottom: 3px solid {_t['sidebar_borde']};
+    padding: 12px 16px 16px;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 8999;
+}}
+#mob-panel.open {{ display: flex !important; }}
+
+/* Info alumno */
+.mob-info {{
+    background: rgba(39,174,96,0.25);
+    border: 1px solid rgba(39,174,96,0.5);
+    border-radius: 8px;
+    padding: 7px 12px;
+    text-align: center;
+    color: white;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.82rem;
+}}
+.mob-info b {{ font-size: 0.95rem; }}
+
+/* Selector de nivel */
+.mob-label {{
+    font-family: 'Caveat', cursive;
+    font-size: 1.05rem;
+    color: #f0e68c;
+    margin-bottom: 2px;
+}}
+#mob-nivel {{
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.18);
+    color: white;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+}}
+#mob-nivel option {{ color: #222; background: white; }}
+
+/* Botones de acción */
+.mob-btns {{
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}}
+.mob-btn {{
+    flex: 1;
+    min-width: 100px;
+    padding: 8px 6px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Caveat', cursive;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+}}
+.mob-btn-reiniciar {{ background: #e67e22; color: white; }}
+.mob-btn-salir     {{ background: #c0392b; color: white; }}
+.mob-btn-desafio   {{ background: #27ae60; color: white; width: 100%; }}
+.mob-btn-docente   {{ background: #8e44ad; color: white; width: 100%; }}
+
+/* Solo mostrar en móvil */
+@media (max-width: 767px) {{
+    #mob-bar   {{ display: flex !important; }}
+}}
+</style>
+
+<div id="mob-bar">
+    <div class="mob-title">🏫 Aula Virtual</div>
+    <button id="mob-toggle" onclick="document.getElementById('mob-panel').classList.toggle('open')">☰ Menú</button>
+</div>
+
+<div id="mob-panel">
+    <div class="mob-info">
+        <b>✅ {_nombre_mob}</b><br>
+        Acceso hasta: {_vence_mob} · {_dias_mob}d restantes
+    </div>
+
+    <div>
+        <div class="mob-label">📚 Nivel del Alumno:</div>
+        <select id="mob-nivel" onchange="cambiarNivel(this.value)">
+            <option value="Primario"    {'selected' if nivel_edu=='Primario'    else ''}>🎨 Primario</option>
+            <option value="Secundario"  {'selected' if nivel_edu=='Secundario'  else ''}>📱 Secundario</option>
+            <option value="Universidad" {'selected' if nivel_edu=='Universidad' else ''}>🎓 Universidad</option>
+        </select>
+    </div>
+
+    <div class="mob-btns">
+        <button class="mob-btn mob-btn-reiniciar" onclick="accionMob('reiniciar')">🗑️ Reiniciar</button>
+        <button class="mob-btn mob-btn-salir"     onclick="accionMob('salir')">🚪 Salir</button>
+    </div>
+    <button class="mob-btn mob-btn-desafio" onclick="accionMob('desafio')">🎯 ¡Quiero ser evaluado!</button>
+    {"<button class='mob-btn mob-btn-docente' onclick='accionMob(\"docente\")'>🔄 Cambiar a Docente</button>" if st.session_state.get('modo_mixto') else ""}
+</div>
+
+<script>
+// Cerrar panel al tocar fuera
+document.addEventListener('click', function(e) {{
+    var panel = document.getElementById('mob-panel');
+    var bar   = document.getElementById('mob-bar');
+    if (panel && bar && !bar.contains(e.target) && !panel.contains(e.target)) {{
+        panel.classList.remove('open');
+    }}
+}});
+
+function cambiarNivel(val) {{
+    // Buscar el selectbox de Streamlit y cambiarlo
+    var selects = window.parent.document.querySelectorAll('select');
+    for (var i = 0; i < selects.length; i++) {{
+        var opts = selects[i].options;
+        for (var j = 0; j < opts.length; j++) {{
+            if (opts[j].value === val || opts[j].text.includes(val)) {{
+                selects[i].value = opts[j].value;
+                selects[i].dispatchEvent(new Event('change', {{bubbles: true}}));
+                break;
+            }}
+        }}
+    }}
+    document.getElementById('mob-panel').classList.remove('open');
+}}
+
+function accionMob(accion) {{
+    // Buscar botones de Streamlit por su texto y clickearlos
+    var textos = {{
+        'reiniciar': ['Reiniciar', '🗑️'],
+        'salir':     ['Salir', '🚪'],
+        'desafio':   ['evaluado', 'Desafío', 'DESAFÍO'],
+        'docente':   ['Docente', 'docente'],
+    }};
+    var palabras = textos[accion] || [];
+    var btns = window.parent.document.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {{
+        var txt = btns[i].innerText || btns[i].textContent;
+        for (var j = 0; j < palabras.length; j++) {{
+            if (txt.includes(palabras[j])) {{
+                btns[i].click();
+                document.getElementById('mob-panel').classList.remove('open');
+                return;
+            }}
+        }}
+    }}
+}}
+</script>
+""", unsafe_allow_html=True)
 
 # Títulos según nivel
 titulos = {
