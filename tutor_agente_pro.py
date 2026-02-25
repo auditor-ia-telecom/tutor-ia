@@ -1132,13 +1132,18 @@ with st.sidebar:
 
     st.divider()
     if not st.session_state.get("modo_docente"):
+        # Aseguramos que el widget refleje siempre nivel_actual (evita desync en reruns del chat)
+        st.session_state["selector_nivel_edu"] = st.session_state.nivel_actual
         nivel_edu = st.selectbox(
             "📚 Nivel del Alumno:",
             ["Primario", "Secundario", "Universidad"],
-            index=["Primario", "Secundario", "Universidad"].index(st.session_state.nivel_actual),
             key="selector_nivel_edu"
         )
-        st.session_state.nivel_actual = nivel_edu
+        if nivel_edu != st.session_state.nivel_actual:
+            st.session_state.nivel_actual = nivel_edu
+            st.session_state.chat_history = []
+            st.session_state.contador = 0
+            st.rerun()
     else:
         nivel_edu = st.session_state.nivel_actual
 
