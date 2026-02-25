@@ -1132,19 +1132,20 @@ with st.sidebar:
 
     st.divider()
     if not st.session_state.get("modo_docente"):
-        nivel_edu = st.selectbox(
+        def _on_nivel_change():
+            nuevo = st.session_state["nivel_edu_sidebar"]
+            if nuevo != st.session_state.nivel_actual:
+                st.session_state.nivel_actual = nuevo
+                st.session_state.chat_history = []
+                st.session_state.contador = 0
+        st.selectbox(
             "📚 Nivel del Alumno:",
             ["Primario", "Secundario", "Universidad"],
-            index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual)
+            index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual),
+            key="nivel_edu_sidebar",
+            on_change=_on_nivel_change,
         )
-        # Detectamos cambio de nivel y reiniciamos chat si cambió
-        if nivel_edu != st.session_state.nivel_actual:
-            st.session_state.nivel_actual = nivel_edu
-            st.session_state.chat_history = []
-            st.session_state.contador = 0
-            st.rerun()
-    else:
-        nivel_edu = st.session_state.nivel_actual
+    nivel_edu = st.session_state.nivel_actual
 
     st.divider()
 
@@ -1320,17 +1321,19 @@ if not st.session_state.get("modo_docente"):
         </div>
         """, unsafe_allow_html=True)
 
-        nivel_mob = st.selectbox(
+        def _on_nivel_mob_change():
+            nuevo_mob = st.session_state["nivel_mob_select"]
+            if nuevo_mob != st.session_state.nivel_actual:
+                st.session_state.nivel_actual = nuevo_mob
+                st.session_state.chat_history = []
+                st.session_state.contador = 0
+        st.selectbox(
             "📚 Nivel:",
             ["Primario", "Secundario", "Universidad"],
-            index=["Primario","Secundario","Universidad"].index(nivel_edu),
-            key="nivel_mob_select"
+            index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual),
+            key="nivel_mob_select",
+            on_change=_on_nivel_mob_change,
         )
-        if nivel_mob != st.session_state.nivel_actual:
-            st.session_state.nivel_actual = nivel_mob
-            st.session_state.chat_history = []
-            st.session_state.contador = 0
-            st.rerun()
 
         col_m1, col_m2 = st.columns(2)
         with col_m1:
