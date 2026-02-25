@@ -9,6 +9,24 @@ if sys.stdout.encoding != 'utf-8':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+# --- TEMPORAL: VERIFICADOR DE VERSIONES ---
+# Subi esto, anota las versiones del sidebar,
+# y borra este bloque antes de volver a subir.
+import pkg_resources as _pkg_res
+_PAQUETES_CHECK = [
+    "streamlit", "langchain-groq", "langgraph",
+    "groq", "langchain-core", "pypdf", "python-docx"
+]
+_lineas_ver = []
+for _p in _PAQUETES_CHECK:
+    try:
+        _lineas_ver.append(_p + "==" + _pkg_res.get_distribution(_p).version)
+    except Exception:
+        _lineas_ver.append(_p + ": no encontrado")
+_VERSIONES_TXT = "\n".join(_lineas_ver)
+# --- FIN TEMPORAL ---
+
+
 from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
@@ -1131,6 +1149,10 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
+    # --- TEMPORAL: mostrar versiones instaladas ---
+    with st.expander("🔍 Ver versiones (temporal)"):
+        st.code(_VERSIONES_TXT)
+    # --- FIN TEMPORAL ---
     if not st.session_state.get("modo_docente"):
         def _on_nivel_change():
             nuevo = st.session_state["nivel_edu_sidebar"]
