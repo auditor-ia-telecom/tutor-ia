@@ -1132,18 +1132,21 @@ with st.sidebar:
 
     st.divider()
     if not st.session_state.get("modo_docente"):
-        nivel_edu_sel = st.selectbox(
+        # Usamos on_change para capturar el cambio sin depender del sidebar
+        def _cambio_nivel():
+            nuevo = st.session_state["nivel_sidebar_select"]
+            if nuevo != st.session_state.nivel_actual:
+                st.session_state.nivel_actual = nuevo
+                st.session_state.chat_history = []
+                st.session_state.contador = 0
+                st.session_state.nivel_recien_cambiado = True
+        st.selectbox(
             "📚 Nivel del Alumno:",
             ["Primario", "Secundario", "Universidad"],
             index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual),
-            key="nivel_sidebar_select"
+            key="nivel_sidebar_select",
+            on_change=_cambio_nivel
         )
-        # Detectamos cambio de nivel y reiniciamos chat si cambió
-        if nivel_edu_sel != st.session_state.nivel_actual:
-            st.session_state.nivel_actual = nivel_edu_sel
-            st.session_state.chat_history = []
-            st.session_state.contador = 0
-            st.rerun()
 
     st.divider()
 
@@ -1215,7 +1218,10 @@ with st.sidebar:
         st.caption("Esperá la primera respuesta del tutor")
 
     st.divider()
-    pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf")
+    pdf_file  = st.file_uploader("📄 Programa (PDF)", type="pdf", key="pdf_alumno")
+    if pdf_file:
+        st.session_state["pdf_alumno_data"] = pdf_file.read()
+        pdf_file.seek(0)
     img_file  = st.file_uploader("🖼️ Foto Ejercicio", type=["jpg","png","jpeg"])
 
     if img_file:
@@ -1332,6 +1338,7 @@ if not st.session_state.get("modo_docente"):
             st.session_state.nivel_actual = nivel_mob
             st.session_state.chat_history = []
             st.session_state.contador = 0
+            st.session_state.nivel_recien_cambiado = True
             st.rerun()
 
         col_m1, col_m2 = st.columns(2)
@@ -1481,10 +1488,12 @@ titulos = {
 }
 st.title(titulos[nivel_edu])
 
-# PDF
+# PDF — usa session_state para funcionar aunque el sidebar esté cerrado
 contexto = "General"
-if pdf_file:
-    contexto = "".join([p.extract_text() for p in PdfReader(pdf_file).pages])
+_pdf_data = st.session_state.get("pdf_alumno_data")
+if _pdf_data:
+    import io as _io_pdf
+    contexto = "".join([p.extract_text() or "" for p in PdfReader(_io_pdf.BytesIO(_pdf_data)).pages])
 
 # Chat — avatar dinámico según nivel
 avatar_map = {
@@ -1595,6 +1604,12 @@ if prompt_audio:
     st.session_state.prompt_desde_audio = None
 
 prompt_texto = st.chat_input("✏️ Escribí tu consulta acá...")
+
+# Si el nivel acaba de cambiar, ignoramos cualquier input accidental
+if st.session_state.get("nivel_recien_cambiado"):
+    st.session_state.nivel_recien_cambiado = False
+    prompt_texto = None
+
 prompt = prompt_audio or prompt_texto
 
 # Si hay foto de cámara pendiente de analizar, la analizamos ahora
@@ -1629,7 +1644,6 @@ if prompt:
             st.session_state.ultima_respuesta_tts = resp_final.content
             with st.chat_message("assistant", avatar=avatar_asist):
                 st.markdown(resp_final.content)
-            st.rerun()
         except Exception as e:
             error_str = str(e).lower()
             # Rate limit
