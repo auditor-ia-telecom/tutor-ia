@@ -18,6 +18,22 @@ from docx.shared import Pt as _Pt, RGBColor as _RGBColor
 import io as _io
 
 # ─────────────────────────────────────────────
+# VERIFICADOR DE VERSIONES — BORRAR DESPUÉS DE USAR
+# Corré la app, anotá los números y eliminá este bloque
+# ─────────────────────────────────────────────
+import pypdf, langgraph, langchain_groq, langchain_core, groq, docx
+st.sidebar.expander("🔧 Versiones instaladas (temporal)").write({
+    "streamlit": st.__version__,
+    "pypdf": pypdf.__version__,
+    "langgraph": langgraph.__version__,
+    "langchain-groq": langchain_groq.__version__,
+    "langchain-core": langchain_core.__version__,
+    "groq": groq.__version__,
+    "python-docx": docx.__version__,
+})
+# ─────────────────────────────────────────────
+
+# ─────────────────────────────────────────────
 # AVATARES SVG inline (base64 para usar en CSS)
 # ─────────────────────────────────────────────
 
