@@ -1,8 +1,7 @@
-streamlit
-langgraph
-langchain-groq
-langchain-core
-groq
-pypdf
-python-docx
-
+streamlit==1.54.0
+langgraph==1.0.9
+langchain-groq==1.1.2
+langchain-core==1.2.15
+groq==0.37.1
+pypdf==6.7.2
+python-docx==1.2.0
