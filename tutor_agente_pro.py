@@ -1132,19 +1132,17 @@ with st.sidebar:
 
     st.divider()
     if not st.session_state.get("modo_docente"):
-        nivel_edu = st.selectbox(
+        nivel_edu_sel = st.selectbox(
             "📚 Nivel del Alumno:",
             ["Primario", "Secundario", "Universidad"],
             index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual)
         )
         # Detectamos cambio de nivel y reiniciamos chat si cambió
-        if nivel_edu != st.session_state.nivel_actual:
-            st.session_state.nivel_actual = nivel_edu
+        if nivel_edu_sel != st.session_state.nivel_actual:
+            st.session_state.nivel_actual = nivel_edu_sel
             st.session_state.chat_history = []
             st.session_state.contador = 0
             st.rerun()
-    else:
-        nivel_edu = st.session_state.nivel_actual
 
     st.divider()
 
@@ -1286,6 +1284,9 @@ with st.sidebar:
             file_name="clase.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
+# nivel_edu SIEMPRE desde session_state, no depende del sidebar
+nivel_edu = st.session_state.nivel_actual
 
 # Inyectamos el tema DESPUÉS de leer el nivel del selectbox
 inyectar_tema(nivel_edu)
