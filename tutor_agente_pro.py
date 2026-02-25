@@ -1132,10 +1132,12 @@ with st.sidebar:
 
     st.divider()
     if not st.session_state.get("modo_docente"):
+        # Sincronizamos la key del selectbox con nivel_actual antes de renderizar
+        if st.session_state.get("selector_nivel_edu") != st.session_state.nivel_actual:
+            st.session_state["selector_nivel_edu"] = st.session_state.nivel_actual
         nivel_edu = st.selectbox(
             "📚 Nivel del Alumno:",
             ["Primario", "Secundario", "Universidad"],
-            index=["Primario","Secundario","Universidad"].index(st.session_state.nivel_actual),
             key="selector_nivel_edu"
         )
         # Detectamos cambio de nivel y reiniciamos chat si cambió
