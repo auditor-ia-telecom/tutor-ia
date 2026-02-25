@@ -1088,6 +1088,9 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
 # INTERFAZ PRINCIPAL
 # ─────────────────────────────────────────────
 
+# nivel_edu siempre disponible antes del sidebar
+nivel_edu = st.session_state.nivel_actual
+
 # Sidebar primero para leer el nivel antes de inyectar el tema
 with st.sidebar:
     st.markdown("<div style='font-family: Caveat, cursive; font-size:1.4rem; color:#f0e68c; text-align:center;'>🏫 Aula Virtual</div>", unsafe_allow_html=True)
