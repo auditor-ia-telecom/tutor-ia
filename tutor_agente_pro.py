@@ -30,7 +30,7 @@ import io as _io
 #      }
 DOCS_CONFIG = {
     "NRA 2026": {
-        "archivo":     "nra.txt",
+        "archivo":     "nra.pdf",
         "emoji":       "📋",
         "descripcion": "Nuevo Régimen Académico · Ministerio de Educación de Córdoba",
     },
@@ -124,7 +124,7 @@ def _normalizar_nombre(texto: str) -> str:
 
 @st.cache_resource
 def cargar_documentos_referencia() -> dict:
-    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documentos")
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
     resultado = {}
 
     if not os.path.exists(base):
@@ -387,12 +387,7 @@ st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_ico
 
 # Carga los PDFs de docs/ una sola vez (debe ir después de set_page_config)
 DOCS_CARGADOS = cargar_documentos_referencia()
-import os as _os
-_base = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "documentos")
-st.write("DEBUG ruta:", _base)
-st.write("DEBUG existe:", _os.path.exists(_base))
-st.write("DEBUG archivos:", _os.listdir(_base) if _os.path.exists(_base) else "NO EXISTE")
-st.write("DEBUG docs cargados:", list(DOCS_CARGADOS.keys()))
+
 # Ocultar barra superior. En móvil ocultamos el sidebar nativo y mostramos un menú propio.
 st.markdown("""
 <style>
@@ -1930,6 +1925,3 @@ if prompt:
             # Quitamos el último mensaje del historial para no dejar mensaje sin respuesta
             if st.session_state.chat_history and isinstance(st.session_state.chat_history[-1], HumanMessage):
                 st.session_state.chat_history.pop()
-
-
-
