@@ -116,21 +116,43 @@ DOCS_CONFIG = {
     },
 }
 
+import unicodedata as _unicodedata
+
+def _normalizar_nombre(texto: str) -> str:
+    """Elimina tildes y pasa a mayúsculas para comparación tolerante."""
+    return _unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode('utf-8').upper()
+
 @st.cache_resource
 def cargar_documentos_referencia() -> dict:
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documentos")
     resultado = {}
+
+    if not os.path.exists(base):
+        return resultado
+
+    # Mapa de nombre_normalizado → nombre_real para buscar sin importar tildes
+    archivos_en_disco = {}
+    for f in os.listdir(base):
+        archivos_en_disco[_normalizar_nombre(f)] = f
+
     for nombre, cfg in DOCS_CONFIG.items():
-        # Intentar primero .txt (para PDFs escaneados), luego .pdf
         archivo = cfg["archivo"]
-        ruta_txt = os.path.join(base, archivo.replace(".pdf", ".txt"))
-        ruta_pdf = os.path.join(base, archivo)
+
+        # Buscar primero versión .txt (PDFs escaneados pre-convertidos)
+        nombre_txt = _normalizar_nombre(archivo.replace(".pdf", ".txt"))
+        nombre_pdf = _normalizar_nombre(archivo)
+
+        archivo_real_txt = archivos_en_disco.get(nombre_txt)
+        archivo_real_pdf = archivos_en_disco.get(nombre_pdf)
+
         try:
-            if os.path.exists(ruta_txt):
-                with open(ruta_txt, "r", encoding="utf-8") as f:
+            if archivo_real_txt:
+                ruta = os.path.join(base, archivo_real_txt)
+                with open(ruta, "r", encoding="utf-8") as f:
                     texto = f.read()
-            elif os.path.exists(ruta_pdf):
-                reader = PdfReader(ruta_pdf)
+            elif archivo_real_pdf:
+                ruta = os.path.join(base, archivo_real_pdf)
+                reader = PdfReader(ruta)
                 texto = "".join([p.extract_text() or "" for p in reader.pages])
             else:
                 continue
@@ -365,16 +387,6 @@ st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_ico
 
 # Carga los PDFs de docs/ una sola vez (debe ir después de set_page_config)
 DOCS_CARGADOS = cargar_documentos_referencia()
-
-# DEBUG TEMPORAL — borrar después
-_base_debug = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documentos")
-st.write("📂 Ruta buscada:", _base_debug)
-st.write("¿Existe carpeta?:", os.path.exists(_base_debug))
-if os.path.exists(_base_debug):
-    st.write("📄 Archivos encontrados:", os.listdir(_base_debug))
-else:
-    st.write("❌ Carpeta NO existe")
-st.write("✅ Docs cargados:", list(DOCS_CARGADOS.keys()) if DOCS_CARGADOS else "ninguno")
 
 # Ocultar barra superior. En móvil ocultamos el sidebar nativo y mostramos un menú propio.
 st.markdown("""
