@@ -18,6 +18,174 @@ from docx.shared import Pt as _Pt, RGBColor as _RGBColor
 import io as _io
 
 # ─────────────────────────────────────────────
+# DOCUMENTOS DE REFERENCIA PARA EL MODO DOCENTE
+# ─────────────────────────────────────────────
+# Para agregar un nuevo documento:
+#   1. Poné el PDF en la carpeta  docs/
+#   2. Agregá una entrada acá con:
+#      "Nombre que aparece en el checkbox": {
+#          "archivo": "nombre_del_archivo.pdf",
+#          "emoji":   "📋",
+#          "descripcion": "Texto corto que se muestra en el sidebar",
+#      }
+DOCS_CONFIG = {
+    "NRA 2026": {
+        "archivo":     "nra.pdf",
+        "emoji":       "📋",
+        "descripcion": "Nuevo Régimen Académico · Ministerio de Educación de Córdoba",
+    },
+    "Marco Curricular Común": {
+        "archivo":     "MARCO CURRICULAR COMUN.pdf",
+        "emoji":       "📘",
+        "descripcion": "Marco Curricular Común",
+    },
+    "Orientaciones": {
+        "archivo":     "ORIENTACIONES.pdf",
+        "emoji":       "🧭",
+        "descripcion": "Orientaciones generales",
+    },
+    "Tecnicaturas": {
+        "archivo":     "TECNICATURAS.pdf",
+        "emoji":       "🔧",
+        "descripcion": "Tecnicaturas",
+    },
+    "Progresiones Formación Vida y Trabajo": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE FORMACION PARA LA VIDA Y EL TRABAJO.pdf",
+        "emoji":       "💼",
+        "descripcion": "Progresiones de Aprendizaje · Formación para la Vida y el Trabajo",
+    },
+    "Progresiones Educación Física": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE EDUCACION FISICA.pdf",
+        "emoji":       "⚽",
+        "descripcion": "Progresiones de Aprendizaje · Educación Física",
+    },
+    "Progresiones Ed. Tecnológica": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE EDUCACION TECNOLOGICA Y CIENCIAS DE LA COMPUTACION.pdf",
+        "emoji":       "💻",
+        "descripcion": "Progresiones de Aprendizaje · Educación Tecnológica y Ciencias",
+    },
+    "Progresiones Ed. Artística": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE EDUCACION ARTISTICA.pdf",
+        "emoji":       "🎨",
+        "descripcion": "Progresiones de Aprendizaje · Educación Artística",
+    },
+    "Progresiones Matemática": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE MATEMATICA.pdf",
+        "emoji":       "🔢",
+        "descripcion": "Progresiones de Aprendizaje · Matemática",
+    },
+    "Progresiones Lengua y Literatura": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE LENGUAJE-LENGUA Y LITERATURA.pdf",
+        "emoji":       "📖",
+        "descripcion": "Progresiones de Aprendizaje · Lenguaje, Lengua y Literatura",
+    },
+    "Progresiones Cs. Naturales": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE CS NATURALES.pdf",
+        "emoji":       "🔬",
+        "descripcion": "Progresiones de Aprendizaje · Ciencias Naturales",
+    },
+    "Progresiones Cs. Sociales": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE CS SOCIALES.pdf",
+        "emoji":       "🌍",
+        "descripcion": "Progresiones de Aprendizaje · Ciencias Sociales",
+    },
+    "Progresiones Ciudadanía": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE CIUDADANIA Y HUMANIDADES.pdf",
+        "emoji":       "🏛️",
+        "descripcion": "Progresiones de Aprendizaje · Ciudadanía y Humanidades",
+    },
+    "Progresiones Inglés": {
+        "archivo":     "PROGRESIONES DE APRENDIZAJE DE LENGUA EXTRANJERA INGLES.pdf",
+        "emoji":       "🇬🇧",
+        "descripcion": "Progresiones de Aprendizaje · Lengua Extranjera Inglés",
+    },
+    "Orient. Pedagógicas Inicial": {
+        "archivo":     "ORIENTACIONES PEDAGOGICAS Y DIDACTICAS  EDUCACION INICIAL.pdf",
+        "emoji":       "📗",
+        "descripcion": "Orientaciones Pedagógicas y Didácticas · Educación Inicial",
+    },
+    "Orient. Pedagógicas Primaria": {
+        "archivo":     "EDUCACION PRIMARIA - ORIENTACIONES PEDAGOGICAS Y DIDACTICAS.pdf",
+        "emoji":       "📙",
+        "descripcion": "Orientaciones Pedagógicas y Didácticas · Educación Primaria",
+    },
+    "Orient. Pedagógicas Secundaria": {
+        "archivo":     "EDUCACION SECUNDARIA - ORIENTACIONES PEDAGOGICAS Y DIDACTICAS.pdf",
+        "emoji":       "📕",
+        "descripcion": "Orientaciones Pedagógicas y Didácticas · Educación Secundaria",
+    },
+}
+
+@st.cache_resource
+def cargar_documentos_referencia() -> dict:
+    base = os.path.join(os.getcwd(), "documentos")
+    resultado = {}
+    for nombre, cfg in DOCS_CONFIG.items():
+        # Intentar primero .txt (para PDFs escaneados), luego .pdf
+        archivo = cfg["archivo"]
+        ruta_txt = os.path.join(base, archivo.replace(".pdf", ".txt"))
+        ruta_pdf = os.path.join(base, archivo)
+        try:
+            if os.path.exists(ruta_txt):
+                with open(ruta_txt, "r", encoding="utf-8") as f:
+                    texto = f.read()
+            elif os.path.exists(ruta_pdf):
+                reader = PdfReader(ruta_pdf)
+                texto = "".join([p.extract_text() or "" for p in reader.pages])
+            else:
+                continue
+            if texto.strip():
+                resultado[nombre] = texto
+        except Exception:
+            pass
+    return resultado
+
+def buscar_fragmentos_relevantes(texto_doc: str, consulta: str,
+                                  n_chunks: int = 6, chunk_size: int = 1200) -> str:
+    """
+    Divide el documento en fragmentos y devuelve los más relevantes
+    según las palabras clave de la consulta.
+    Evita mandar el PDF entero al modelo — solo los ~2700 chars más útiles.
+    """
+    # 1. Dividir respetando párrafos
+    parrafos = texto_doc.split("\n")
+    chunks, actual = [], ""
+    for p in parrafos:
+        if len(actual) + len(p) < chunk_size:
+            actual += p + "\n"
+        else:
+            if actual.strip():
+                chunks.append(actual.strip())
+            actual = p + "\n"
+    if actual.strip():
+        chunks.append(actual.strip())
+
+    if not chunks:
+        return ""
+
+    # 2. Palabras clave de la consulta (sin stopwords comunes)
+    stopwords = {
+        "de","la","el","en","que","y","a","los","las","un","con","del",
+        "para","por","es","se","no","al","lo","una","como","o","sus",
+        "si","sobre","pero","más","ya","puede","debe","tiene","hay",
+    }
+    palabras = set(consulta.lower().split()) - stopwords
+
+    # 3. Puntuar cada chunk por coincidencias
+    def puntuar(chunk):
+        t = chunk.lower()
+        return sum(1 for p in palabras if p in t)
+
+    chunks_ordenados = sorted(chunks, key=puntuar, reverse=True)
+
+    # 4. Devolver los N mejores (con al menos 1 punto para no mandar basura)
+    top = [c for c in chunks_ordenados[:n_chunks] if puntuar(c) > 0]
+    if not top:
+        top = chunks_ordenados[:1]  # Al menos el primero si nada matchea
+
+    return "\n\n---\n\n".join(top)
+
+# ─────────────────────────────────────────────
 # AVATARES SVG inline (base64 para usar en CSS)
 # ─────────────────────────────────────────────
 
@@ -195,6 +363,9 @@ TEMAS = {
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_icon="🎓", initial_sidebar_state="expanded")
 
+# Carga los PDFs de docs/ una sola vez (debe ir después de set_page_config)
+DOCS_CARGADOS = cargar_documentos_referencia()
+
 # Ocultar barra superior. En móvil ocultamos el sidebar nativo y mostramos un menú propio.
 st.markdown("""
 <style>
@@ -247,6 +418,7 @@ defaults = {
     "modo_mixto": False,
     "modo_seleccionado": None,
     "sidebar_inicializado": False,
+    "docs_ref_activos": {},   # { "NRA 2026": True/False, ... }
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -824,6 +996,33 @@ if st.session_state.get("modo_docente"):
         st.session_state["_mob_nivel_doc"]   = nivel_doc
         st.session_state["_mob_materia_doc"] = materia_doc
 
+        # ── DOCUMENTOS DE REFERENCIA (solo aparecen si el PDF existe en docs/) ──
+        if DOCS_CARGADOS:
+            st.divider()
+            st.markdown(
+                "<div style='font-family:Caveat,cursive;font-size:1.1rem;"
+                "font-weight:700;color:#f0e68c;'>📚 Reglamentos y marcos</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption("Activá para basar la respuesta en estos documentos")
+            for nombre_doc, cfg in DOCS_CONFIG.items():
+                if nombre_doc not in DOCS_CARGADOS:
+                    continue  # el PDF no está en la carpeta, no mostramos el checkbox
+                key_cb = f"cb_doc_{nombre_doc}"
+                activo = st.checkbox(
+                    f"{cfg['emoji']} {nombre_doc}",
+                    value=st.session_state["docs_ref_activos"].get(nombre_doc, False),
+                    key=key_cb,
+                    help=cfg["descripcion"],
+                )
+                st.session_state["docs_ref_activos"][nombre_doc] = activo
+                if activo:
+                    st.markdown(
+                        f"<div style='font-size:0.72rem;color:rgba(255,255,0,0.85);"
+                        f"margin-top:-6px;margin-bottom:4px;'>✅ Activo</div>",
+                        unsafe_allow_html=True,
+                    )
+
         st.divider()
         if st.button("🗑️ Nueva consulta", use_container_width=True):
             st.session_state.chat_history = []
@@ -940,6 +1139,39 @@ if st.session_state.get("modo_docente"):
         if contexto_img_doc:
             contexto_extra += f"\n\nIMAGEN ANALIZADA:\n{contexto_img_doc}"
 
+        # ── DOCUMENTOS DE REFERENCIA ACTIVOS (RAG por fragmentos) ──
+        docs_activos = st.session_state.get("docs_ref_activos", {})
+        fragmentos_usados = []
+        for nombre_ref, esta_activo in docs_activos.items():
+            if esta_activo and nombre_ref in DOCS_CARGADOS:
+                cfg_ref = DOCS_CONFIG[nombre_ref]
+                fragmentos = buscar_fragmentos_relevantes(
+                    DOCS_CARGADOS[nombre_ref], prompt_doc
+                )
+                if fragmentos:
+                    fragmentos_usados.append(nombre_ref)
+                    contexto_extra += f"""
+
+══════════════════════════════════════════
+{cfg_ref['emoji']} {nombre_ref.upper()} — {cfg_ref['descripcion']}
+Fragmentos más relevantes para esta consulta:
+══════════════════════════════════════════
+{fragmentos}
+══════════════════════════════════════════
+"""
+
+        # Instrucción de citado solo si hay docs activos
+        instruccion_cita = ""
+        if fragmentos_usados:
+            lista = ", ".join(fragmentos_usados)
+            instruccion_cita = f"""
+IMPORTANTE — USO DE DOCUMENTOS DE REFERENCIA:
+Basá tu respuesta en los fragmentos del {lista} que se incluyen arriba.
+Citá el documento y, si podés identificarla, la sección o artículo correspondiente.
+Si la consulta no está cubierta por esos fragmentos, indicalo claramente y respondé
+con criterio pedagógico general sin inventar reglamentación.
+"""
+
         sys_prompt_docente = f"""Sos un asistente pedagógico experto al servicio de un docente de {nivel_doc}.
 Tu especialidad es: {herramienta}.
 Materia: {materia_doc if materia_doc else "general"}.
@@ -963,6 +1195,7 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
 - Si el docente plantea una situación de riesgo para un alumno (violencia, abuso, salud mental), orientá con empatía y derivá a los canales institucionales correspondientes (equipo de orientación, dirección, servicio social).
 - Podés abordar temas sensibles como drogas, sexualidad o violencia desde una perspectiva pedagógica y preventiva, siempre con lenguaje profesional y enfoque en el bienestar del alumno.
 - No reemplazás el criterio del docente ni de las autoridades educativas. Tus respuestas son orientaciones de apoyo, no prescripciones.
+{instruccion_cita}
 {contexto_extra}"""
 
         with st.spinner("📝 Preparando material..."):
@@ -1006,6 +1239,23 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
         st.session_state["_mob_herramienta"] = herramienta_mob
         st.session_state["_mob_nivel_doc"]   = nivel_doc_mob
         st.session_state["_mob_materia_doc"] = materia_doc_mob
+
+        # ── DOCUMENTOS DE REFERENCIA (menú móvil) ──
+        if DOCS_CARGADOS:
+            st.markdown("---")
+            st.markdown("**📚 Reglamentos y marcos**")
+            st.caption("Activá para basar la respuesta en estos documentos")
+            for nombre_doc_mob, cfg_mob in DOCS_CONFIG.items():
+                if nombre_doc_mob not in DOCS_CARGADOS:
+                    continue
+                key_cb_mob = f"cb_doc_mob_{nombre_doc_mob}"
+                activo_mob = st.checkbox(
+                    f"{cfg_mob['emoji']} {nombre_doc_mob}",
+                    value=st.session_state["docs_ref_activos"].get(nombre_doc_mob, False),
+                    key=key_cb_mob,
+                    help=cfg_mob["descripcion"],
+                )
+                st.session_state["docs_ref_activos"][nombre_doc_mob] = activo_mob
 
         st.markdown("---")
         if st.button("🗑️ Nueva consulta", key="doc_mob_reiniciar", use_container_width=True):
