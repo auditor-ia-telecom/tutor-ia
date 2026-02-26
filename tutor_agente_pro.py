@@ -366,6 +366,16 @@ st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_ico
 # Carga los PDFs de docs/ una sola vez (debe ir después de set_page_config)
 DOCS_CARGADOS = cargar_documentos_referencia()
 
+# DEBUG TEMPORAL — borrar después
+_base_debug = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documentos")
+st.write("📂 Ruta buscada:", _base_debug)
+st.write("¿Existe carpeta?:", os.path.exists(_base_debug))
+if os.path.exists(_base_debug):
+    st.write("📄 Archivos encontrados:", os.listdir(_base_debug))
+else:
+    st.write("❌ Carpeta NO existe")
+st.write("✅ Docs cargados:", list(DOCS_CARGADOS.keys()) if DOCS_CARGADOS else "ninguno")
+
 # Ocultar barra superior. En móvil ocultamos el sidebar nativo y mostramos un menú propio.
 st.markdown("""
 <style>
