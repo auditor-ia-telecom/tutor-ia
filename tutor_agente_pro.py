@@ -387,7 +387,7 @@ st.set_page_config(page_title="Tutor IA Multinivel", layout="centered", page_ico
 
 # Carga los PDFs de docs/ una sola vez (debe ir después de set_page_config)
 DOCS_CARGADOS = cargar_documentos_referencia()
-
+st.write("DEBUG - Docs cargados:", list(DOCS_CARGADOS.keys()))
 # Ocultar barra superior. En móvil ocultamos el sidebar nativo y mostramos un menú propio.
 st.markdown("""
 <style>
@@ -1925,4 +1925,5 @@ if prompt:
             # Quitamos el último mensaje del historial para no dejar mensaje sin respuesta
             if st.session_state.chat_history and isinstance(st.session_state.chat_history[-1], HumanMessage):
                 st.session_state.chat_history.pop()
+
 
