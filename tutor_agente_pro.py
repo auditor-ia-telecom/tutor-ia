@@ -118,7 +118,7 @@ DOCS_CONFIG = {
 
 @st.cache_resource
 def cargar_documentos_referencia() -> dict:
-    base = os.path.join(os.getcwd(), "documentos")
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documentos")
     resultado = {}
     for nombre, cfg in DOCS_CONFIG.items():
         # Intentar primero .txt (para PDFs escaneados), luego .pdf
