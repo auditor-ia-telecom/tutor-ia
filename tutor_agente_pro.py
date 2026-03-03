@@ -737,7 +737,12 @@ if not st.session_state.autenticado:
         <h1 style='font-family: Caveat, cursive; font-size:2.5rem; color:#283593;'>Aula Virtual IA</h1>
         <p style='font-family: Nunito, sans-serif; color:#555;'>
             Ingresá tu código de acceso para comenzar la clase.<br>
-            <small>¿No tenés uno? Contactá al profe 📲</small>
+            <small>¿No tenés uno? Contactá al profe 
+                <a href="https://wa.me/543584260947?text=Hola%2C%20te%20solicito%20un%20token%20de%20acceso.%20Mi%20nombre%20y%20apellido%20es%3A%20%5Bescribir%20nombre%20y%20apellido%5D%0ASoy%3A%20%5BAlumno%20%2F%20Docente%5D%0ANivel%3A%20%5BPrimario%20%2F%20Secundario%20%2F%20Universitario%5D" 
+                   target="_blank" style="text-decoration:none; vertical-align:middle;">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" width="32" height="32" style="vertical-align:middle;" />
+                </a>
+            </small>
         </p>
     </div>""", unsafe_allow_html=True)
     st.markdown("""
