@@ -441,6 +441,7 @@ defaults = {
     "modo_seleccionado": None,
     "sidebar_inicializado": False,
     "docs_ref_activos": {},   # { "NRA 2026": True/False, ... }
+    "alerta_seguridad_activa": False,  # True si se disparó una alerta en esta sesión
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -983,13 +984,25 @@ _RESPUESTAS_SEGURIDAD = {
 # Historial de fragmentos sospechosos por sesión (se resetea con el chat)
 _fragmentos_sesion: list[str] = []
 
-def prefiltro_seguridad(texto: str, historial_reciente: list[str] | None = None) -> str | None:
+def prefiltro_seguridad(texto: str, historial_reciente: list[str] | None = None, alerta_previa: bool = False) -> str | None:
     """
     Revisa el texto del usuario antes de mandarlo al LLM.
     Retorna una respuesta de seguridad si detecta contenido prohibido, o None si es seguro.
-    Cubre: español, inglés, portugués, leetspeak, evasión con puntos, y fragmentación.
+    Cubre: español, inglés, portugués, leetspeak, evasión con puntos, fragmentación
+    y bloqueo por insistencia tras alerta previa en la misma sesión.
     """
     texto_norm = _normalizar_prefiltro(texto)
+
+    # 0. Si ya se disparó una alerta antes en esta sesión, bloquear automáticamente
+    #    cualquier mensaje que contenga palabras relacionadas con los temas sensibles
+    if alerta_previa:
+        _PALABRAS_SENSIBLES = (
+            r"(pastillas?|medicamento\w*|dosis|somnifero\w*|sleeping|pills?|"
+            r"suicid\w*|morir|muerte|matar\w*|daño|dolor|methods?|metodos?|"
+            r"cuantas?|demasiadas?|how\s+many|too\s+many|enough\s+to)"
+        )
+        if _re.search(_PALABRAS_SENSIBLES, texto_norm):
+            return _RESPUESTAS_SEGURIDAD["crisis"]
 
     # 1. Patrones directos en los tres idiomas
     for patrones in (_PATRONES_ES, _PATRONES_EN, _PATRONES_PT):
@@ -998,7 +1011,6 @@ def prefiltro_seguridad(texto: str, historial_reciente: list[str] | None = None)
                 return _RESPUESTAS_SEGURIDAD[categoria]
 
     # 2. Detección de fragmentación acumulada
-    # Si el mensaje actual contiene un fragmento sospechoso Y hay otro en el historial reciente
     fragmentos_en_texto = [p for p in _FRAGMENTOS_PELIGROSOS if _re.search(p, texto_norm)]
     if fragmentos_en_texto and historial_reciente:
         historial_norm = [_normalizar_prefiltro(h) for h in historial_reciente[-6:]]
@@ -1222,6 +1234,7 @@ if st.session_state.get("modo_docente"):
         st.divider()
         if st.button("🗑️ Nueva consulta", use_container_width=True):
             st.session_state.chat_history = []
+            st.session_state.alerta_seguridad_activa = False
             st.rerun()
         if st.session_state.get("modo_mixto"):
             if st.button("🔄 Cambiar a Alumno", use_container_width=True):
@@ -1402,7 +1415,13 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
             try:
                 # ── PRE-FILTRO DE SEGURIDAD (modo docente) ──
                 historial_textos_doc = [m.content for m in st.session_state.chat_history if isinstance(m, HumanMessage)]
-                respuesta_segura_doc = prefiltro_seguridad(prompt_doc, historial_textos_doc)
+                respuesta_segura_doc = prefiltro_seguridad(
+                    prompt_doc,
+                    historial_textos_doc,
+                    alerta_previa=st.session_state.get("alerta_seguridad_activa", False)
+                )
+                if respuesta_segura_doc:
+                    st.session_state.alerta_seguridad_activa = True
                 if respuesta_segura_doc:
                     resp_doc = AIMessage(content=respuesta_segura_doc)
                     st.session_state.chat_history.append(resp_doc)
@@ -1470,6 +1489,7 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
         st.markdown("---")
         if st.button("🗑️ Nueva consulta", key="doc_mob_reiniciar", use_container_width=True):
             st.session_state.chat_history = []
+            st.session_state.alerta_seguridad_activa = False
             st.rerun()
         if st.session_state.get("modo_mixto"):
             if st.button("🔄 Cambiar a Alumno", key="doc_mob_alumno", use_container_width=True):
@@ -1571,6 +1591,7 @@ with st.sidebar:
     with col1:
         if st.button("🗑️ Reiniciar", use_container_width=True):
             st.session_state.chat_history = []
+            st.session_state.alerta_seguridad_activa = False
             st.session_state.contador = 0
             st.session_state.ultima_imagen_id = None
             st.session_state.descripcion_imagen = None
@@ -1597,6 +1618,7 @@ with st.sidebar:
             if nuevo != st.session_state.nivel_actual:
                 st.session_state.nivel_actual = nuevo
                 st.session_state.chat_history = []
+                st.session_state.alerta_seguridad_activa = False
                 st.session_state.contador = 0
         st.selectbox(
             "📚 Nivel del Alumno:",
@@ -1786,6 +1808,7 @@ if not st.session_state.get("modo_docente"):
             if nuevo_mob != st.session_state.nivel_actual:
                 st.session_state.nivel_actual = nuevo_mob
                 st.session_state.chat_history = []
+                st.session_state.alerta_seguridad_activa = False
                 st.session_state.contador = 0
         st.selectbox(
             "📚 Nivel:",
@@ -1799,6 +1822,7 @@ if not st.session_state.get("modo_docente"):
         with col_m1:
             if st.button("🗑️ Reiniciar", key="mob_reiniciar", use_container_width=True):
                 st.session_state.chat_history = []
+                st.session_state.alerta_seguridad_activa = False
                 st.session_state.contador = 0
                 st.session_state.ultima_imagen_id = None
                 st.session_state.descripcion_imagen = None
@@ -2078,7 +2102,13 @@ if prompt:
         try:
             # ── PRE-FILTRO DE SEGURIDAD ──
             historial_textos = [m.content for m in st.session_state.chat_history if isinstance(m, HumanMessage)]
-            respuesta_segura = prefiltro_seguridad(prompt, historial_textos)
+            respuesta_segura = prefiltro_seguridad(
+                prompt,
+                historial_textos,
+                alerta_previa=st.session_state.get("alerta_seguridad_activa", False)
+            )
+            if respuesta_segura:
+                st.session_state.alerta_seguridad_activa = True
             if respuesta_segura:
                 resp_final = AIMessage(content=respuesta_segura)
                 st.session_state.chat_history.append(resp_final)
