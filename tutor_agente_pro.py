@@ -868,19 +868,85 @@ def describir_imagen_automaticamente(img_b64: str) -> str:
 
 # ─────────────────────────────────────────────
 # PRE-FILTRO DE SEGURIDAD (capa antes del LLM)
+# Versión 2: multiidioma + leetspeak + fragmentación
 # ─────────────────────────────────────────────
 import re as _re
+import unicodedata as _ud
 
-_PATRONES_PROHIBIDOS = [
-    # Suicidio y autolesión
-    (r"\b(suicid\w*|autolesion\w*|cortarse\s+las?\s+venas?|tirarse?\s+(de|desde|por)\s+\w*\s*(altura|edificio|puente|balcon|ventana|piso)|ahorcarse?|ahorcar\w*|pastillas?\s+para\s+morir|sobredosis\s+intencional|quitarse\s+la\s+vida|hacerse\s+(daño|mal))\b",
+def _normalizar_prefiltro(texto: str) -> str:
+    """
+    Normaliza el texto para resistir evasiones:
+    - Quita tildes y diacríticos
+    - Pasa a minúsculas
+    - Reemplaza sustituciones leetspeak comunes (0→o, 1→i, 3→e, 4→a, @→a, $→s)
+    - Elimina espacios y puntos entre letras de una misma palabra (s.u.i.c.i.d.i.o → suicidio)
+    """
+    # 1. Quitar tildes
+    texto = _ud.normalize('NFD', texto).encode('ascii', 'ignore').decode('utf-8')
+    # 2. Minúsculas
+    texto = texto.lower()
+    # 3. Leetspeak
+    leet = {'0':'o','1':'i','3':'e','4':'a','@':'a','$':'s','5':'s','7':'t','!':'i'}
+    texto = ''.join(leet.get(c, c) for c in texto)
+    # 4. Puntos/guiones entre letras individuales (evasión tipo "s.u.i.c.i.d.i.o")
+    texto = _re.sub(r'(?<=\b\w)[.\-_](?=\w\b)', '', texto)
+    return texto
+
+# ── Patrones en español ──
+_PATRONES_ES = [
+    # Suicidio y autolesión — palabras clave + combinaciones de pedido de métodos
+    (r"(suicid\w*|autolesion\w*|quitarse\s+la\s+vida|hacerse\s+(dano|mal)|"
+     r"cortarse\s+las?\s+venas?|tirarse?\s+(de|desde|por)\s+\w*\s*(altura|edificio|puente|balcon|ventana|piso)|"
+     r"ahorcarse?|pastillas?\s+para\s+morir|sobredosis\s+intencional|"
+     r"metodos?\s+(de|para)\s+(suicid\w*|morir|acabar|quitarse)|"
+     r"como\s+(suicidarse|matarse|morir\s+sin\s+dolor|acabar\s+con\s+(todo|mi\s+vida)))",
      "crisis"),
     # Explosivos y armas
-    (r"\b(tnt|explosiv\w*|detonar?\w*|fabricar\s+(bomba|explosivo|arma)|polvora|petardo\s+casero|cable\s*(rojo|negro)\s*(explotar|detonar|encender|bomba)|mezcla\s*(explosiva|peligrosa|quimica))\b",
+    (r"(tnt|explosiv\w*|detonar?\w*|fabricar\s+(bomba|explosivo|arma)|polvora|"
+     r"petardo\s+casero|cable\s*(rojo|negro)\s*(explotar|detonar|encender|bomba)|"
+     r"mezcla\s*(explosiva|peligrosa|quimica\s+peligrosa)|nitrato\s+de\s+amonio|"
+     r"como\s+(hacer|fabricar|construir)\s+(una\s+)?(bomba|explosivo|arma\s+casera))",
      "peligro"),
     # Drogas
-    (r"\b(como\s+(preparar|hacer|conseguir|fabricar)\s+(droga\w*|cocaina|marihuana|pasta\s+base|fentanilo|heroina|metanfetamin\w*))\b",
+    (r"(como\s+(preparar|hacer|conseguir|fabricar|sintetizar)\s+"
+     r"(droga\w*|cocaina|marihuana|pasta\s+base|fentanilo|heroina|metanfetamin\w*|crack|paco))",
      "drogas"),
+]
+
+# ── Patrones en inglés ──
+_PATRONES_EN = [
+    # Suicide and self-harm
+    (r"(suicid\w*|self.?harm|cut\s+(my|your|the)\s+wrists?|"
+     r"methods?\s+(of|for|to)\s+(suicide|killing\s+(myself|yourself)|ending\s+(my|your|a)\s+life)|"
+     r"how\s+to\s+(kill\s+(my|your)self|commit\s+suicide|end\s+(my|your)\s+life|die\s+without\s+pain)|"
+     r"ways?\s+to\s+(die|suicide|end\s+(my|your)\s+life)|"
+     r"overdose\s+on\s+pills?|hanging\s+(my|your)self)",
+     "crisis"),
+    # Explosives and weapons
+    (r"(tnt|explosiv\w*|detonat\w*|how\s+to\s+(make|build|create)\s+(a\s+)?(bomb|explosive|weapon)|"
+     r"pipe\s+bomb|homemade\s+(bomb|explosive|weapon)|ammonium\s+nitrate\s+bomb)",
+     "peligro"),
+    # Drugs
+    (r"(how\s+to\s+(make|cook|synthesize|produce)\s+(meth|heroin|cocaine|crack|fentanyl|crystal\s+meth))",
+     "drogas"),
+]
+
+# ── Patrones en portugués ──
+_PATRONES_PT = [
+    (r"(suicid\w*|autolesao|como\s+(me\s+matar|suicidar|tirar\s+minha\s+vida)|"
+     r"metodos?\s+(de\s+suicidio|para\s+morrer))",
+     "crisis"),
+    (r"(como\s+fazer\s+(uma\s+)?(bomba|explosivo)|tnt|explosiv\w*)",
+     "peligro"),
+    (r"(como\s+(fazer|preparar|sintetizar)\s+(droga\w*|cocaina|heroina|metanfetamin\w*))",
+     "drogas"),
+]
+
+# ── Detector de fragmentación (acumulación de preguntas parciales peligrosas) ──
+_FRAGMENTOS_PELIGROSOS = [
+    r"(cuantas?\s+pastillas?|dosis\s+letal|dosis\s+maxima|que\s+pasa\s+si\s+tomo\s+muchas?)",
+    r"(how\s+many\s+pills?|lethal\s+dose|what\s+happens\s+if\s+(i\s+take|you\s+take)\s+too\s+many)",
+    r"(pastillas?\s+para\s+dormir|sleeping\s+pills?|somniferos?)",
 ]
 
 _RESPUESTAS_SEGURIDAD = {
@@ -906,18 +972,40 @@ _RESPUESTAS_SEGURIDAD = {
         "o un profesional de la salud. 🙏\n\n"
         "¿Querés que sigamos con el contenido de la clase?"
     ),
+    "fragmentacion": (
+        "Esa combinación de preguntas me genera una alerta de seguridad y no puedo continuar "
+        "por este camino. Si hay algo que te preocupa, hablá con un adulto de confianza "
+        "o llamá al **135** (gratuito, 24hs). 💙\n\n"
+        "Si es para un trabajo escolar, podemos reformular la consulta junto a tu docente."
+    ),
 }
 
-def prefiltro_seguridad(texto: str) -> str | None:
+# Historial de fragmentos sospechosos por sesión (se resetea con el chat)
+_fragmentos_sesion: list[str] = []
+
+def prefiltro_seguridad(texto: str, historial_reciente: list[str] | None = None) -> str | None:
     """
     Revisa el texto del usuario antes de mandarlo al LLM.
-    Retorna una respuesta de seguridad si detecta contenido prohibido,
-    o None si el mensaje es seguro.
+    Retorna una respuesta de seguridad si detecta contenido prohibido, o None si es seguro.
+    Cubre: español, inglés, portugués, leetspeak, evasión con puntos, y fragmentación.
     """
-    texto_lower = texto.lower()
-    for patron, categoria in _PATRONES_PROHIBIDOS:
-        if _re.search(patron, texto_lower):
-            return _RESPUESTAS_SEGURIDAD[categoria]
+    texto_norm = _normalizar_prefiltro(texto)
+
+    # 1. Patrones directos en los tres idiomas
+    for patrones in (_PATRONES_ES, _PATRONES_EN, _PATRONES_PT):
+        for patron, categoria in patrones:
+            if _re.search(patron, texto_norm):
+                return _RESPUESTAS_SEGURIDAD[categoria]
+
+    # 2. Detección de fragmentación acumulada
+    # Si el mensaje actual contiene un fragmento sospechoso Y hay otro en el historial reciente
+    fragmentos_en_texto = [p for p in _FRAGMENTOS_PELIGROSOS if _re.search(p, texto_norm)]
+    if fragmentos_en_texto and historial_reciente:
+        historial_norm = [_normalizar_prefiltro(h) for h in historial_reciente[-6:]]
+        for frag in _FRAGMENTOS_PELIGROSOS:
+            if any(_re.search(frag, h) for h in historial_norm):
+                return _RESPUESTAS_SEGURIDAD["fragmentacion"]
+
     return None
 
 # ─────────────────────────────────────────────
@@ -1313,7 +1401,8 @@ Usá formato claro con títulos y secciones. Sé concreto y aplicable al aula re
         with st.spinner("📝 Preparando material..."):
             try:
                 # ── PRE-FILTRO DE SEGURIDAD (modo docente) ──
-                respuesta_segura_doc = prefiltro_seguridad(prompt_doc)
+                historial_textos_doc = [m.content for m in st.session_state.chat_history if isinstance(m, HumanMessage)]
+                respuesta_segura_doc = prefiltro_seguridad(prompt_doc, historial_textos_doc)
                 if respuesta_segura_doc:
                     resp_doc = AIMessage(content=respuesta_segura_doc)
                     st.session_state.chat_history.append(resp_doc)
@@ -1988,7 +2077,8 @@ if prompt:
     with st.spinner(spinner_msg):
         try:
             # ── PRE-FILTRO DE SEGURIDAD ──
-            respuesta_segura = prefiltro_seguridad(prompt)
+            historial_textos = [m.content for m in st.session_state.chat_history if isinstance(m, HumanMessage)]
+            respuesta_segura = prefiltro_seguridad(prompt, historial_textos)
             if respuesta_segura:
                 resp_final = AIMessage(content=respuesta_segura)
                 st.session_state.chat_history.append(resp_final)
